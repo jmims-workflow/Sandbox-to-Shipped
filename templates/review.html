@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, label, field_error, described %}
+{% block title %}Review queue | {% endblock %}
+{% block content %}
+<h1>Review queue</h1>
+<p class="page-intro">Requests waiting for a decision. Claude sizes each one up and can draft the reason. You decide.</p>
+{% if flash %}<p class="notice {{ 'notice-info' if mode == 'demo' and flash == DEMO_READONLY else 'notice-ok' }}" role="status">{{ flash }}</p>{% endif %}
+
+{% macro yes_no(name, legend_text, value) %}
+<fieldset class="field checklist-q"{{ described(errors, name) }}>
+  <legend id="{{ name }}">{{ legend_text }}</legend>
+  <div class="seg">
+    <label><input type="radio" name="{{ name }}" value="yes"{% if value == "yes" %} checked{% endif %}> Yes</label>
+    <label><input type="radio" name="{{ name }}" value="no"{% if value == "no" %} checked{% endif %}> No</label>
+  </div>
+  {{ field_error(errors, name) }}
+</fieldset>
+{% endmacro %}
+
+<div class="two-col wide-right">
+  <nav aria-label="Requests to review">
+    {% if queue %}
+    <ul class="queue">
+      {% for item in queue %}
+      <li><a href="/review/{{ item.r.id }}"{% if sel and sel.id == item.r.id %} aria-current="true"{% endif %}>
+        <span class="q-title">{{ item.r.title }}</span>
+        <span class="q-line">{{ item.line }}</span>
+      </a></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="card"><p style="margin:0">Nothing is waiting. Nice work.</p></div>
+    {% endif %}
+  </nav>
+
+  {% if sel %}
+  {% set r = sel %}
+  <div class="stack">
+    {% for q in open_questions %}
+    <div class="question-box" role="note">
+      <strong>The requester asked about this decision ({{ q.date|date }}):</strong>
+      <p>{{ q.text }}</p>
+    </div>
+    {% endfor %}
+
+    {% include "partials/request_card.html" %}
+    {% include "partials/claude_read.html" %}
+
+    {% if r.status == "decided" and decision %}
+    <section class="card" aria-labelledby="sent-h">
+      <h2 id="sent-h">The decision that was sent</h2>
+      <p>{{ label(decision.outcome) }}</p>
+      <p>{{ decision.reason }}</p>
+      <div class="callout"><strong>What would change the answer:</strong> {{ decision.what_would_change }}</div>
+      <p class="muted small">Decided {{ decision.decided_at|date }} by {{ decision.decided_by }}. Answer the requester directly, then mark the question as handled. If the answer changes, they can start a new request from this one.</p>
+      <form method="post" action="/review/{{ r.id }}">
+        <button type="submit" class="btn" name="action" value="handled"{% if mode == "demo" %} disabled aria-describedby="handled-demo"{% endif %}>Mark question as handled</button>
+        {% if mode == "demo" %}<p class="muted small" id="handled-demo" style="margin:8px 0 0">{{ DEMO_READONLY }}</p>{% endif %}
+      </form>
+    </section>
+    {% else %}
+    <form method="post" action="/review/{{ r.id }}" class="card" id="decision-form" novalidate data-draft-url="/api/review/{{ r.id }}/draft" aria-labelledby="decide-h">
+      <h2 id="decide-h">Your decision</h2>
+
+      {% if errors %}
+      <div class="notice notice-error" role="alert">
+        <strong>Before you send:</strong>
+        <ul>{% for key, msg in errors.items() %}<li><a href="#{{ key }}">{{ msg }}</a></li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+
+      <h3>Checklist</h3>
+      {{ yes_no("already_exists", "Does an approved tool already do this?", form.checklist.already_exists) }}
+      {{ yes_no("sends_without_check", "Would it send anything to customers or the public without a person checking first?", form.checklist.sends_without_check) }}
+      {{ yes_no("uses_customer_details", "Does it use customer or deal details?", form.checklist.uses_customer_details) }}
+      <fieldset class="field checklist-q"{{ described(errors, "security_check") }}>
+        <legend id="security_check">Security check</legend>
+        <div class="seg">
+          {% for key, text in SECURITY_CHECK.items() %}
+          <label><input type="radio" name="security_check" value="{{ key }}"{% if form.checklist.security_check == key %} checked{% endif %}> {{ text }}</label>
+          {% endfor %}
+        </div>
+        {{ field_error(errors, "security_check") }}
+      </fieldset>
+
+      <div id="sends-warning" class="notice notice-warn" role="status"{% if not warnings %} hidden{% endif %}>
+        {{ icon("info", 18) }} Northstar doesn't approve tools that send to customers on their own.
+      </div>
+
+      <fieldset class="field"{{ described(errors, "outcome") }}>
+        <legend id="outcome">Outcome</legend>
+        <div class="outcomes">
+          {% for key, text in OUTCOME_CHOICES.items() %}
+          <label class="outcome-card"><input type="radio" name="outcome" value="{{ key }}"{% if form.outcome == key %} checked{% endif %}> {{ text }}</label>
+          {% endfor %}
+        </div>
+        {{ field_error(errors, "outcome") }}
+      </fieldset>
+
+      <div class="field js-cond" data-for="use_existing">
+        <label for="existing_tool_id">Tool to point to <span class="muted">(for Use an existing tool)</span></label>
+        <select id="existing_tool_id" name="existing_tool_id"{{ described(errors, "existing_tool_id") }}>
+          <option value="">Choose a tool</option>
+          {% for t in usable_tools %}<option value="{{ t.id }}"{% if form.existing_tool_id == t.id %} selected{% endif %}>{{ t.name }} ({{ TOOL_STATUSES[t.status]|lower }})</option>{% endfor %}
+        </select>
+        {{ field_error(errors, "existing_tool_id") }}
+      </div>
+
+      <div class="field js-cond" data-for="approve_with_limits">
+        <label for="limits">Limits <span class="muted">(for Approve with limits)</span></label>
+        <textarea id="limits" name="limits" rows="2"{{ described(errors, "limits") }}>{{ form.limits }}</textarea>
+        {{ field_error(errors, "limits") }}
+      </div>
+
+      <fieldset class="subform js-cond" data-for="approve approve_with_limits">
+        <legend>The new tool <span class="muted">(for approvals; it starts as being tried)</span></legend>
+        <div class="field"><label for="tool_name">Tool name</label><input type="text" id="tool_name" name="tool_name" value="{{ form.new_tool.name }}"{{ described(errors, "tool_name") }}>{{ field_error(errors, "tool_name") }}</div>
+        <div class="field"><label for="tool_purpose">What it does (one sentence)</label><input type="text" id="tool_purpose" name="tool_purpose" value="{{ form.new_tool.purpose }}"{{ described(errors, "tool_purpose") }}>{{ field_error(errors, "tool_purpose") }}</div>
+        <div class="grid-2">
+          <div class="field"><label for="tool_owner">Owner name</label><input type="text" id="tool_owner" name="tool_owner_name" value="{{ form.new_tool.owner_name }}"{{ described(errors, "tool_owner") }}>{{ field_error(errors, "tool_owner") }}</div>
+          <div class="field"><label for="tool_owner_team">Owner team</label><input type="text" id="tool_owner_team" name="tool_owner_team" value="{{ form.new_tool.owner_team }}"></div>
+        </div>
+        <div class="field">
+          <label class="choice" style="padding-left:0"><input type="checkbox" id="owner_agreed" name="owner_agreed" value="yes"{% if form.new_tool.owner_agreed %} checked{% endif %}{{ described(errors, "owner_agreed") }}> Owner has agreed to own this tool</label>
+          {{ field_error(errors, "owner_agreed") }}
+        </div>
+        <fieldset class="field"{{ described(errors, "tool_allowed_info") }}>
+          <legend id="tool_allowed_info">Okay to use with</legend>
+          <div class="choices">{% for key, text in INFO_KINDS.items() %}<label class="choice"><input type="checkbox" name="tool_allowed_info" value="{{ key }}"{% if key in form.new_tool.allowed_info %} checked{% endif %}> {{ text }}</label>{% endfor %}</div>
+          {{ field_error(errors, "tool_allowed_info") }}
+        </fieldset>
+        <div class="field" style="margin-bottom:0"><label for="tool_trial_ends">Trial ends</label><input type="date" id="tool_trial_ends" name="tool_trial_ends" value="{{ form.new_tool.trial_ends.isoformat() if form.new_tool.trial_ends else '' }}"{{ described(errors, "tool_trial_ends") }}>{{ field_error(errors, "tool_trial_ends") }}</div>
+      </fieldset>
+
+      <div class="field">
+        <label for="reason">Reason the requester will see</label>
+        <textarea id="reason" name="reason" rows="4" aria-describedby="draft-note{% if errors.get('reason') %} reason-error{% endif %}"{% if errors.get('reason') %} aria-invalid="true"{% endif %}>{{ form.reason }}</textarea>
+        {{ field_error(errors, "reason") }}
+        <div class="btn-row" style="margin-top:8px">
+          <button type="submit" class="btn btn-secondary" name="action" value="draft" id="draft-btn" formnovalidate>{{ icon("spark", 18) }}Draft the reason for me</button>
+        </div>
+        <p id="draft-note" class="small" role="status" aria-live="polite">{% if draft_note %}<span class="claude-note" style="display:inline-flex;margin:8px 0 0">{{ icon("spark", 16) }}{{ draft_note }} A person decides.</span>{% endif %}{% if draft_error %}<span class="field-error">{{ draft_error }}</span>{% endif %}</p>
+        <input type="hidden" name="drafted_reason" id="drafted_reason" value="{{ form.drafted_reason }}">
+      </div>
+
+      <div class="field">
+        <label for="what_would_change">What would change the answer</label>
+        <textarea id="what_would_change" name="what_would_change" rows="2"{{ described(errors, "what_would_change") }}>{{ form.what_would_change }}</textarea>
+        {{ field_error(errors, "what_would_change") }}
+      </div>
+
+      <div class="decision-actions">
+        <div class="btn-row">
+          <button type="submit" class="btn" name="action" value="send"{% if mode == "demo" %} disabled aria-describedby="demo-line"{% endif %}>Send decision</button>
+          <button type="submit" class="btn btn-secondary" name="action" value="save" formnovalidate{% if mode == "demo" %} disabled aria-describedby="demo-line"{% endif %}>Save for later</button>
+        </div>
+        {% if mode == "demo" %}<p class="muted small" id="demo-line" style="margin:8px 0 0">{{ DEMO_READONLY }}</p>{% endif %}
+        <p class="small" style="margin:8px 0 0">Claude never sends a decision. You do.</p>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

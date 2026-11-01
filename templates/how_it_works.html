@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon %}
+{% block title %}How it works | {% endblock %}
+{% block content %}
+<h1>How it works</h1>
+<p class="page-intro">{{ APP_NAME }} is where anyone at Northstar asks for an AI tool, finds out whether we already have one, and sees the decision with a plain reason. Here's the path a request takes.</p>
+
+<section class="card" aria-labelledby="path-h">
+  <h2 id="path-h">The path a request takes</h2>
+  <ol class="flow">
+    <li><span class="step">Request</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
+    <li><span class="step">Check what exists</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
+    <li><span class="step">Reviewer decides</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
+    <li><span class="step tried">{{ icon("flask", 16) }} Being tried</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
+    <li><span class="step approved">{{ icon("check", 16) }} Approved</span></li>
+  </ol>
+  <p class="muted" style="margin:0">From sandbox to shipped: a new tool starts as being tried by one team, and moves to approved once it proves itself.</p>
+</section>
+
+<section class="card" aria-labelledby="ideas-h">
+  <h2 id="ideas-h">What we promise</h2>
+  <ol class="principles">
+    <li><strong>One front door.</strong> Requests, decisions and approved tools live in one place, so nobody has to chase an answer in chat.</li>
+    <li><strong>Check what exists first.</strong> Before you submit, we show approved tools that may already do the job. Often the best answer is a tool we already have.</li>
+    <li><strong>A person decides every request.</strong> Claude sizes up requests, suggests matches and drafts reasons. It never approves or turns down anything on its own.</li>
+    <li><strong>Every "no" comes with a reason and a path.</strong> Each decision says why, and what would change the answer.</li>
+    <li><strong>We ask what you actually know.</strong> The form asks how often and who would use it, not how many hours it would save, because hours are hard to guess.</li>
+    <li><strong>Past decisions are open, requesters stay private.</strong> Decided before shows every past decision and its reason so nobody asks twice. It never shows who asked.</li>
+    <li><strong>Owners agree to be owners.</strong> Nobody is listed as a tool owner unless they agreed to it.</li>
+  </ol>
+</section>
+{% endblock %}

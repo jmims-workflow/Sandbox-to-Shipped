@@ -1,0 +1,41 @@
+{% from "macros.html" import icon, label %}
+<h2>{{ icon("search") }}<span>You may already have this</span></h2>
+{% if panel and panel.error %}
+  <p class="notice notice-warn" role="alert">{{ panel.error }}</p>
+{% elif not panel or not panel.checked %}
+  <p class="muted">Describe what you're trying to do, and we'll check the tools Northstar already has.</p>
+{% elif not panel["items"] %}
+  <p>Nothing we have looks like this yet. Submit it and a reviewer will take a look.</p>
+{% else %}
+  {% for m in panel["items"] %}
+  {% set t = m.tool %}
+  <article class="match-card" aria-labelledby="match-{{ t.id }}">
+    <div class="match-head">
+      <h3 id="match-{{ t.id }}">{{ t.name }}</h3>
+      {{ label(t.status) }}
+    </div>
+    {% if m.confidence == "close" %}
+    <p class="confidence">Close match. Claude is fairly sure.</p>
+    {% else %}
+    <p class="confidence">Possible match. Claude is less sure:</p>
+    {% endif %}
+    <p>{{ m.reason }}</p>
+    <p class="muted small">{{ t.purpose }} Okay to use with: {% for i in t.allowed_info %}{{ INFO_KINDS[i]|lower }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>
+    <p class="small">Owner: {{ t.owner_name }}, {{ t.owner_team }}</p>
+    <p class="match-links">
+      <a href="/tools/{{ t.id }}">See it in the inventory</a>
+      {% if t.link %}<a href="{{ t.link }}" rel="noopener">Open the tool {{ icon("external", 16) }}</a>{% endif %}
+    </p>
+  </article>
+  {% endfor %}
+  {% if panel.source == "word" %}
+  <p class="muted small">Demo uses a simple word match. Live mode asks Claude.</p>
+  {% endif %}
+  <input type="hidden" name="matches_json" form="request-form" value="{{ panel.raw|tojson|forceescape }}">
+  <div class="field">
+    <label for="whats_missing">Not quite right? Say what's missing.</label>
+    <textarea id="whats_missing" name="whats_missing" form="request-form" rows="3"{% if errors.get("whats_missing") %} aria-invalid="true" aria-describedby="whats_missing-error"{% endif %}>{{ f.whats_missing }}</textarea>
+    {% if errors.get("whats_missing") %}<p class="field-error" id="whats_missing-error">{{ errors.whats_missing }}</p>{% endif %}
+    <p class="muted small">Reviewers see these matches and your note.</p>
+  </div>
+{% endif %}

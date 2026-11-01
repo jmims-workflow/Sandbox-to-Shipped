@@ -1,0 +1,225 @@
+# Requests and decisions for the fictional company Northstar Systems.
+# Demo mode treats as_of as "today" so dates read the same on every visit.
+as_of: 2026-11-02
+demo_requester: Priya Raman
+demo_reviewer: Jordan Ellis
+
+requests:
+  - id: r-1048
+    title: Follow-up emails from call notes
+    task: >-
+      After a discovery call, turn my notes into a follow-up email that answers
+      every question the customer asked and proposes a next step.
+    team: Sales
+    how_often: few_week
+    who_uses: my_team
+    info: [customer_contact, deal_pricing]
+    requester_name: Priya Raman
+    submitted_at: 2026-11-02
+    status: waiting
+    timeline:
+      - {label: Submitted, date: 2026-11-02}
+
+  - id: r-1047
+    title: Social posts from case studies
+    task: >-
+      When a case study goes live, write three LinkedIn posts and a short
+      newsletter blurb from it, using the customer's name and their best quote.
+    team: Marketing
+    how_often: few_month
+    who_uses: my_team
+    info: [customer_contact, public_only]
+    extra: We publish about two case studies a month, mostly for Insight customers.
+    requester_name: Owen Pratt
+    submitted_at: 2026-10-30
+    status: waiting
+    whats_missing: >-
+      Case Study Builder writes the case study itself. I need the social posts
+      that come after it's published.
+    timeline:
+      - {label: Submitted, date: 2026-10-30}
+
+  - id: r-1046
+    title: Renewal risk notes for CSMs
+    task: >-
+      Before a renewal call, read the account's recent support threads and
+      meeting notes and write a short note on renewal risk: what's going well,
+      what's at risk and what to bring up on the call.
+    team: Customer success
+    how_often: few_week
+    who_uses: my_team
+    info: [customer_contact, internal_notes]
+    extra: Most of our renewals are Connect accounts with 50 or more seats.
+    requester_name: Nora Lindqvist
+    submitted_at: 2026-10-29
+    status: waiting
+    timeline:
+      - {label: Submitted, date: 2026-10-29}
+
+  - id: r-1045
+    title: Partner one-pager drafts
+    task: >-
+      Draft a one-page overview for a new reseller partner that explains
+      FlowOS and Connect, our partner tiers and how deal registration works.
+    team: Partnerships
+    how_often: few_month
+    who_uses: several_teams
+    info: [internal_notes, public_only]
+    requester_name: Priya Raman
+    submitted_at: 2026-10-27
+    status: in_review
+    timeline:
+      - {label: Submitted, date: 2026-10-27}
+      - {label: Reviewer picked it up, date: 2026-10-31}
+
+  - id: r-1044
+    title: Reply to inbound demo requests automatically
+    task: >-
+      When someone fills in the demo request form, reply right away with times
+      that work and a short intro to FlowOS.
+    team: Sales
+    how_often: every_day
+    who_uses: several_teams
+    info: [customer_contact]
+    extra: Right now replies can take a day, and we lose people in that gap.
+    requester_name: Priya Raman
+    submitted_at: 2026-10-20
+    status: decided
+    questions:
+      - text: >-
+          Could the version that drafts the reply also suggest meeting times
+          from the rep's calendar? That's the slowest part for us.
+        date: 2026-10-29
+    timeline:
+      - {label: Submitted, date: 2026-10-20}
+      - {label: Reviewer picked it up, date: 2026-10-21}
+      - {label: Security check done, date: 2026-10-24}
+      - {label: Decided, date: 2026-10-27}
+    decision:
+      outcome: not_approved
+      checklist:
+        already_exists: "no"
+        sends_without_check: "yes"
+        uses_customer_details: "yes"
+        security_check: done
+      reason: >-
+        This would send emails to prospects without a person reading them
+        first, and it would use contact details from our inbound form. We
+        don't approve tools that send to customers on their own.
+      what_would_change: >-
+        A version that drafts the reply for a rep to check and send would
+        likely be approved. It could build on Call Recap Writer, which is
+        already approved for customer details.
+      reason_drafted_by_claude: true
+      reason_edited: true
+      decided_by: the AI review group
+      decided_at: 2026-10-27
+
+  - id: r-1042
+    title: Translate help center articles
+    task: >-
+      Translate our Connect help center articles into Spanish, Portuguese and
+      German so customers in those regions can help themselves.
+    team: Support
+    how_often: few_week
+    who_uses: my_team
+    info: [public_only]
+    requester_name: Mei Tanaka
+    submitted_at: 2026-10-02
+    status: decided
+    timeline:
+      - {label: Submitted, date: 2026-10-02}
+      - {label: Reviewer picked it up, date: 2026-10-06}
+      - {label: Decided, date: 2026-10-09}
+    decision:
+      outcome: use_existing
+      existing_tool_id: translation-helper
+      checklist:
+        already_exists: "yes"
+        sends_without_check: "no"
+        uses_customer_details: "no"
+        security_check: not_needed
+      reason: >-
+        Translation Helper is already being tried by International Marketing
+        and handles public pages like help center articles. Ana Ferreira has
+        added Support to the trial, so you can start using it this week.
+      what_would_change: >-
+        If help center translations need a glossary of Connect terms the tool
+        can't follow, tell us and we'll look at a separate version.
+      reason_drafted_by_claude: true
+      reason_edited: false
+      decided_by: Jordan Ellis
+      decided_at: 2026-10-09
+
+  - id: r-1041
+    title: Webinar recap emails
+    task: >-
+      After each webinar, write a recap email for people who registered, with
+      the three main takeaways and a link to the recording.
+    team: Marketing
+    how_often: few_month
+    who_uses: my_team
+    info: [public_only]
+    requester_name: Priya Raman
+    submitted_at: 2026-07-28
+    status: decided
+    timeline:
+      - {label: Submitted, date: 2026-07-28}
+      - {label: Reviewer picked it up, date: 2026-07-30}
+      - {label: Decided, date: 2026-08-04}
+    decision:
+      outcome: approve
+      checklist:
+        already_exists: "no"
+        sends_without_check: "no"
+        uses_customer_details: "no"
+        security_check: not_needed
+      reason: >-
+        Approved. Recap emails use only public webinar content, and a person
+        sends them. We've added this to Webinar Invite Writer, so invites,
+        reminders and recaps all live in one tool owned by Lena Ortiz.
+      what_would_change: >-
+        If you want recaps to include attendee questions or names, ask again,
+        since that would use customer details.
+      reason_drafted_by_claude: true
+      reason_edited: true
+      decided_by: Jordan Ellis
+      decided_at: 2026-08-04
+
+  - id: r-1043
+    title: Fill in proposal pricing from deal notes
+    task: >-
+      Read my deal notes and fill in the pricing table in our proposal
+      template, including seat counts, discounts and payment terms.
+    team: Sales
+    how_often: few_week
+    who_uses: several_teams
+    info: [customer_contact, deal_pricing]
+    requester_name: Carlos Mendes
+    submitted_at: 2026-06-08
+    status: decided
+    timeline:
+      - {label: Submitted, date: 2026-06-08}
+      - {label: Reviewer picked it up, date: 2026-06-10}
+      - {label: Security check done, date: 2026-06-15}
+      - {label: Decided, date: 2026-06-18}
+    decision:
+      outcome: approve_with_limits
+      limits: Prices come from the price sheet, never typed in by hand.
+      checklist:
+        already_exists: "no"
+        sends_without_check: "no"
+        uses_customer_details: "yes"
+        security_check: done
+      reason: >-
+        Approved with one limit. Drafting proposals from deal notes saves real
+        time, but a wrong price in a proposal is hard to take back. The tool
+        pulls every price from the price sheet instead of reading numbers from
+        your notes.
+      what_would_change: >-
+        If the price sheet gets an approved way to record custom discounts, we
+        can look at letting the tool fill those in too.
+      reason_drafted_by_claude: true
+      reason_edited: true
+      decided_by: Jordan Ellis
+      decided_at: 2026-06-18

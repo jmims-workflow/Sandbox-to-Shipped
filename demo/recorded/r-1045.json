@@ -1,0 +1,50 @@
+{
+  "request_id": "r-1045",
+  "matches": [
+    {
+      "tool_id": "partner-outreach-drafts",
+      "confidence": "possible",
+      "reason": "It writes first messages to possible resellers, which overlaps with a partner introduction, but not a full one-pager."
+    }
+  ],
+  "size_up": {
+    "title": "Partner one-pager drafts",
+    "security_check_needed": false,
+    "bullets": [
+      {
+        "label": "Closest match",
+        "text": "Partner Outreach Drafts is being tried by Partnerships until January 10. It writes first messages, not a one-pager, but it already knows our partner tiers. It may be easier to extend it than to start a new tool."
+      },
+      {
+        "label": "Information",
+        "text": "Internal notes on partner tiers and deal registration, plus public product information. No customer details, so a security check is likely not needed."
+      },
+      {
+        "label": "Shared use",
+        "text": "Several teams would use it, so the one-pager would need an owner who keeps tier details current."
+      },
+      {
+        "label": "Worth asking",
+        "text": "Is the tier and deal registration information written down somewhere the tool could read, or would reps paste it in each time?"
+      }
+    ]
+  },
+  "drafts": {
+    "use_existing": {
+      "reason": "Partner Outreach Drafts is already being tried by Partnerships and knows our partner tiers. Theo Grant has agreed to add a one-pager option during the trial, so you can try it there first.",
+      "what_would_change": "If the one-pager needs content the outreach tool can't handle, like deal registration steps, tell us and we'll look at a separate tool."
+    },
+    "approve": {
+      "reason": "Approved. A one-page overview for new reseller partners uses internal and public information only, and a person reviews each one before it's shared. It starts as being tried with Partnerships.",
+      "what_would_change": "If partners need custom pricing in the one-pager, ask again since that would use deal details."
+    },
+    "approve_with_limits": {
+      "reason": "Approved with a limit. You can draft partner one-pagers, but tier and deal registration details must come from the current partner guide so every partner sees the same terms.",
+      "what_would_change": "If the partner guide moves somewhere the tool can read it directly, we can look at lifting this limit."
+    },
+    "not_approved": {
+      "reason": "We're not approving this as a separate tool right now. Partner Outreach Drafts is still being tried, and we'd like to see how it does before adding a second partner writing tool.",
+      "what_would_change": "When the outreach trial ends on January 10, ask again and we'll look at this with what we've learned."
+    }
+  }
+}

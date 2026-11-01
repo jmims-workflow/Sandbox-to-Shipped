@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, field_error, described %}
+{% block title %}Request a tool | {% endblock %}
+{% block content %}
+<h1>Request a tool</h1>
+<p class="page-intro">Tell us what you're trying to do. We'll check what already exists before anyone builds something new.</p>
+
+{% if notice %}<p class="notice notice-info" role="status">{{ notice }}</p>{% endif %}
+{% if errors %}
+<div class="notice notice-error" role="alert" tabindex="-1" id="error-summary">
+  <strong>Please fix {{ "this" if errors|length == 1 else "these" }} before submitting:</strong>
+  <ul>{% for key, msg in errors.items() %}<li><a href="#{{ 'info-first' if key == 'info' else key }}">{{ msg }}</a></li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="two-col">
+  <form id="request-form" class="card" method="post" action="/" novalidate data-check-url="/api/matches">
+    <input type="hidden" name="copied_from" value="{{ f.copied_from }}">
+    <div class="field">
+      <label for="task">What are you trying to do?</label>
+      <p class="hint" id="task-hint">Describe the task, not the tool. For example, "turn webinar notes into a recap email."</p>
+      <textarea id="task" name="task" rows="5"{{ described(errors, "task", "task-hint") }}>{{ f.task }}</textarea>
+      {{ field_error(errors, "task") }}
+    </div>
+
+    <div class="field">
+      <label for="team">Which team are you on?</label>
+      <select id="team" name="team"{{ described(errors, "team") }}>
+        <option value="">Choose your team</option>
+        {% for t in TEAMS %}<option value="{{ t }}"{% if f.team == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
+      </select>
+      {{ field_error(errors, "team") }}
+    </div>
+
+    <fieldset class="field"{{ described(errors, "how_often") }}>
+      <legend id="how_often">How often would you do this?</legend>
+      <div class="choices inline">
+      {% for key, text in HOW_OFTEN.items() %}
+        <label class="choice"><input type="radio" name="how_often" value="{{ key }}"{% if f.how_often == key %} checked{% endif %}> {{ text }}</label>
+      {% endfor %}
+      </div>
+      {{ field_error(errors, "how_often") }}
+    </fieldset>
+
+    <fieldset class="field"{{ described(errors, "who_uses") }}>
+      <legend id="who_uses">Who would use it?</legend>
+      <div class="choices inline">
+      {% for key, text in WHO_USES.items() %}
+        <label class="choice"><input type="radio" name="who_uses" value="{{ key }}"{% if f.who_uses == key %} checked{% endif %}> {{ text }}</label>
+      {% endfor %}
+      </div>
+      {{ field_error(errors, "who_uses") }}
+    </fieldset>
+
+    <fieldset class="field" aria-describedby="info-hint{% if errors.get('info') %} info-error{% endif %}">
+      <legend>What information would it use?</legend>
+      <p class="hint" id="info-hint">Not sure? Check it anyway. A reviewer will help sort it out.</p>
+      <div class="choices">
+      {% for key, text in INFO_KINDS.items() %}
+        <label class="choice"><input type="checkbox" name="info" value="{{ key }}"{% if loop.first %} id="info-first"{% endif %}{% if key in f.info %} checked{% endif %}> {{ text }}</label>
+      {% endfor %}
+      </div>
+      {{ field_error(errors, "info") }}
+    </fieldset>
+
+    <div class="field">
+      <label for="extra">Anything else a reviewer should know? (optional)</label>
+      <input type="text" id="extra" name="extra" value="{{ f.extra }}"{{ described(errors, "extra") }}>
+      {{ field_error(errors, "extra") }}
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn" name="action" value="submit">Submit request</button>
+      <button type="submit" class="btn btn-secondary js-hide" name="action" value="check">Check what we have</button>
+    </div>
+    <p class="muted small" style="margin-top:12px">You'll see the decision, and the reason, on My requests.</p>
+  </form>
+
+  <div>
+    <section class="card match-panel" id="match-panel" aria-live="polite" aria-busy="false" aria-label="You may already have this">
+      {% include "partials/match_panel.html" %}
+    </section>
+    <p class="under-panel">Claude only suggests. A person reviews every request.</p>
+  </div>
+</div>
+{% endblock %}

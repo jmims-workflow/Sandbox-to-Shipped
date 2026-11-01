@@ -1,0 +1,38 @@
+{
+  "request_id": "r-1044",
+  "matches": [
+    {
+      "tool_id": "call-recap-writer",
+      "confidence": "possible",
+      "reason": "It writes emails to customers and is approved for contact details, but a rep sends each one; it doesn't reply on its own."
+    }
+  ],
+  "size_up": {
+    "title": "Auto-reply to inbound demo requests",
+    "security_check_needed": true,
+    "bullets": [
+      {
+        "label": "Sends on its own",
+        "text": "Yes. The request is for replies to go out right away with no one reading them first. Northstar doesn't approve tools that send to customers on their own."
+      },
+      {
+        "label": "Information",
+        "text": "Customer contact details from the inbound demo form. A security check is needed."
+      },
+      {
+        "label": "Closest match",
+        "text": "Call Recap Writer writes customer emails and is approved for contact details, but a rep reads and sends each one."
+      },
+      {
+        "label": "Worth asking",
+        "text": "Would a reply drafted within minutes, for a rep to check and send, solve the slow response time?"
+      }
+    ]
+  },
+  "drafts": {
+    "not_approved": {
+      "reason": "This would send emails to people who asked for a demo without anyone reading them first, and it uses contact details from our inbound form. We don't approve tools that send to customers on their own.",
+      "what_would_change": "A version that drafts each reply for a rep to check and send would likely be approved."
+    }
+  }
+}

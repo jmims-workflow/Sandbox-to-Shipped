@@ -1,0 +1,34 @@
+{
+  "request_id": "r-1041",
+  "matches": [
+    {
+      "tool_id": "webinar-invite-writer",
+      "confidence": "possible",
+      "reason": "It writes webinar invites and reminders, so recaps could be a natural addition."
+    }
+  ],
+  "size_up": {
+    "title": "Webinar recap emails",
+    "security_check_needed": false,
+    "bullets": [
+      {
+        "label": "Closest match",
+        "text": "Webinar Invite Writer covers invites and reminders. Recaps would be a small addition to the same tool, with the same owner."
+      },
+      {
+        "label": "Information",
+        "text": "Public webinar content only. No security check needed."
+      },
+      {
+        "label": "Worth asking",
+        "text": "Should recaps go to everyone who registered, or only to people who attended?"
+      }
+    ]
+  },
+  "drafts": {
+    "approve": {
+      "reason": "Approved. Recap emails use only public webinar content, and a person sends them. We'd suggest adding this to Webinar Invite Writer so invites, reminders and recaps live in one place.",
+      "what_would_change": "If you want recaps to include attendee questions or names, ask again, since that would use customer details."
+    }
+  }
+}

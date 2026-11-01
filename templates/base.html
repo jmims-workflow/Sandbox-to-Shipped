@@ -1,0 +1,87 @@
+{% from "macros.html" import icon, logo %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{% endblock %}{{ APP_NAME }}: {{ TAGLINE }}</title>
+<meta name="description" content="{{ APP_NAME }}. {{ TAGLINE }}">
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+
+{% macro nav_links() %}
+<ul class="nav-list">
+{% if viewer == "reviewer" %}
+  <li><a href="/review" class="nav-link"{% if current == "review" %} aria-current="page"{% endif %}>{{ icon("checklist") }}<span>Review queue</span>{% if waiting_count %}<span class="badge" aria-label="{{ waiting_count }} waiting">{{ waiting_count }}</span>{% endif %}</a></li>
+{% else %}
+  <li><a href="/" class="nav-link"{% if current == "request" %} aria-current="page"{% endif %}>{{ icon("plus") }}<span>Request a tool</span></a></li>
+  <li><a href="/requests" class="nav-link"{% if current == "mine" %} aria-current="page"{% endif %}>{{ icon("inbox") }}<span>My requests</span></a></li>
+{% endif %}
+  <li><a href="/tools" class="nav-link"{% if current == "tools" %} aria-current="page"{% endif %}>{{ icon("box") }}<span>Tool inventory</span></a></li>
+  <li><a href="/decided" class="nav-link"{% if current == "decided" %} aria-current="page"{% endif %}>{{ icon("history") }}<span>Decided before</span></a></li>
+</ul>
+{% endmacro %}
+
+{% macro nav_bottom() %}
+<div class="nav-bottom">
+  <a href="/how-it-works" class="nav-link"{% if current == "how" %} aria-current="page"{% endif %}>{{ icon("help") }}<span>How it works</span></a>
+  <form method="post" action="/viewing-as" class="viewing-as">
+    <input type="hidden" name="next" value="{{ path }}">
+    <fieldset>
+      <legend>Viewing as</legend>
+      <div class="switch">
+        <button type="submit" name="role" value="requester" aria-pressed="{{ 'true' if viewer == 'requester' else 'false' }}">Requester</button>
+        <button type="submit" name="role" value="reviewer" aria-pressed="{{ 'true' if viewer == 'reviewer' else 'false' }}">Reviewer</button>
+      </div>
+    </fieldset>
+  </form>
+  {% if mode == "live" %}
+  <p class="mode-pill mode-live">Live: runs on Claude</p>
+  {% else %}
+  <p class="mode-pill mode-demo">Demo: sample data</p>
+  {% endif %}
+</div>
+{% endmacro %}
+
+<header class="topbar">
+  <a href="/" class="brand-small">{{ logo(32) }}<span>{{ APP_NAME }}</span></a>
+  <details class="mobile-menu">
+    <summary>{{ icon("menu") }}<span>Menu</span></summary>
+    <nav aria-label="Main" class="mobile-nav">
+      {{ nav_links() }}
+      {{ nav_bottom() }}
+    </nav>
+  </details>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+   <div class="sidebar-inner">
+    <a href="/" class="brand" aria-label="{{ APP_NAME }}, Request a tool">{{ logo(44) }}</a>
+    <p class="brand-name">{{ APP_NAME }}</p>
+    <p class="brand-tagline">{{ TAGLINE }}</p>
+    <nav aria-label="Main" class="side-nav">
+      {{ nav_links() }}
+    </nav>
+    {{ nav_bottom() }}
+   </div>
+  </aside>
+
+  <main id="main" tabindex="-1">
+    {% if fell_back %}
+    <div class="notice notice-warn" role="status">
+      <strong>Live mode is turned on, but no API key is set.</strong> The app is showing sample data instead. Add ANTHROPIC_API_KEY on the server to run live.
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+</body>
+</html>

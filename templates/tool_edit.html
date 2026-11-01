@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, field_error, described %}
+{% block title %}Edit {{ t.name }} | {% endblock %}
+{% block content %}
+<a class="back-link" href="/tools/{{ t.id }}">{{ icon("back", 18) }}{{ t.name }}</a>
+<h1>Edit {{ t.name }}</h1>
+{% if errors %}<div class="notice notice-error" role="alert"><strong>Please fix these:</strong><ul>{% for k, m in errors.items() %}<li>{{ m }}</li>{% endfor %}</ul></div>{% endif %}
+<form class="card" method="post" action="/tools/{{ t.id }}/edit" style="max-width:720px">
+  <div class="field"><label for="name">Name</label><input type="text" id="name" name="name" value="{{ t.name }}"{{ described(errors, "name") }}>{{ field_error(errors, "name") }}</div>
+  <div class="field"><label for="purpose">What it does (one sentence)</label><input type="text" id="purpose" name="purpose" value="{{ t.purpose }}"{{ described(errors, "purpose") }}>{{ field_error(errors, "purpose") }}</div>
+  <div class="grid-2">
+    <div class="field"><label for="owner_name">Owner name</label><input type="text" id="owner_name" name="owner_name" value="{{ t.owner_name }}"{{ described(errors, "owner_name") }}>{{ field_error(errors, "owner_name") }}</div>
+    <div class="field"><label for="owner_team">Owner team</label><input type="text" id="owner_team" name="owner_team" value="{{ t.owner_team }}"{{ described(errors, "owner_team") }}>{{ field_error(errors, "owner_team") }}</div>
+  </div>
+  <div class="field">
+    <label class="choice" style="padding-left:0"><input type="checkbox" name="owner_agreed" value="yes"> If the owner changed: the new owner has agreed to own this tool</label>
+    {{ field_error(errors, "owner_agreed") }}
+  </div>
+  <div class="field"><label for="teams">Used by (teams, separated by commas)</label><input type="text" id="teams" name="teams" value="{{ t.teams|join(', ') }}"></div>
+  <fieldset class="field">
+    <legend>Okay to use with</legend>
+    <div class="choices">{% for key, text in INFO_KINDS.items() %}<label class="choice"><input type="checkbox" name="allowed_info" value="{{ key }}"{% if key in t.allowed_info %} checked{% endif %}> {{ text }}</label>{% endfor %}</div>
+    {{ field_error(errors, "allowed_info") }}
+  </fieldset>
+  {% if t.status == "approved_with_limits" %}
+  <div class="field"><label for="limits">Limits</label><textarea id="limits" name="limits" rows="2"{{ described(errors, "limits") }}>{{ t.limits or "" }}</textarea>{{ field_error(errors, "limits") }}</div>
+  {% endif %}
+  <div class="grid-2">
+    <div class="field"><label for="next_review">Next review (month and year)</label><input type="text" id="next_review" name="next_review" value="{{ t.next_review or '' }}"></div>
+    <div class="field"><label for="link">Link (optional)</label><input type="url" id="link" name="link" value="{{ t.link or '' }}"{{ described(errors, "link") }}>{{ field_error(errors, "link") }}</div>
+  </div>
+  <button type="submit" class="btn"{% if mode == "demo" %} disabled aria-describedby="edit-demo"{% endif %}>Save changes</button>
+  {% if mode == "demo" %}<p class="muted small" id="edit-demo" style="margin:8px 0 0">{{ TOOL_READONLY }}</p>{% endif %}
+</form>
+{% endblock %}

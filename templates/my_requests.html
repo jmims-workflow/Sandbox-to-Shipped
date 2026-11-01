@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "macros.html" import request_label %}
+{% block title %}My requests | {% endblock %}
+{% block content %}
+<h1>My requests</h1>
+<p class="page-intro">Everything you've asked for, newest first. Open one to see the decision and the reason.</p>
+{% if items %}
+<ul class="list">
+  {% for it in items %}
+  <li class="card list-item">
+    <div>
+      <h2><a href="/requests/{{ it.r.id }}">{{ it.r.title }}</a></h2>
+      <p class="muted small" style="margin:0">Submitted {{ it.r.submitted_at|date }}{% if it.d %}. Decided {{ it.d.decided_at|date }}{% endif %}</p>
+    </div>
+    {{ request_label(it.r, it.d) }}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="card"><p>You haven't asked for anything yet.</p><a class="btn" href="/">Request a tool</a></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,7 @@
+{%- if t.status == "being_tried" -%}
+Being tried by {{ t.teams[0] if t.teams else t.owner_team }} until {{ t.trial_ends|date }}. Owner {{ t.owner_name }}, {{ t.owner_team }}.
+{%- elif t.status == "retired" -%}
+Retired{% if t.replaced_by and tools.get(t.replaced_by) %}. Replaced by {{ tools[t.replaced_by].name }}{% endif %}. Owner was {{ t.owner_name }}.
+{%- else -%}
+Owner {{ t.owner_name }}, {{ t.owner_team }}. Used by {{ join_words(t.teams) }}.{% if t.next_review %} Next review {{ t.next_review }}.{% endif %}
+{%- endif -%}
