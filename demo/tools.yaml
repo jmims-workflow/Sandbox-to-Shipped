@@ -1,0 +1,103 @@
+# Northstar Systems tool inventory (fictional demo data).
+tools:
+  - id: call-recap-writer
+    name: Call Recap Writer
+    purpose: Turns call notes into a follow-up email with a clear next step.
+    owner_name: Dana Whitfield
+    owner_team: Sales Enablement
+    teams: [Sales, Partnerships]
+    status: approved
+    allowed_info: [customer_contact, deal_pricing]
+    next_review: January 2027
+    link: https://tools.northstar.example/call-recap-writer
+
+  - id: proposal-drafter
+    name: Proposal Drafter
+    purpose: Writes first drafts of proposals for FlowOS and Connect.
+    owner_name: Marcus Bell
+    owner_team: Sales Operations
+    teams: [Sales]
+    status: approved_with_limits
+    allowed_info: [customer_contact, deal_pricing]
+    limits: Prices come from the price sheet, never typed in by hand.
+    next_review: March 2027
+    link: https://tools.northstar.example/proposal-drafter
+    from_request: r-1043
+
+  - id: webinar-invite-writer
+    name: Webinar Invite Writer
+    purpose: Writes invite and reminder emails from an event brief.
+    owner_name: Lena Ortiz
+    owner_team: Field Marketing
+    teams: [Marketing]
+    status: approved
+    allowed_info: [public_only]
+    next_review: February 2027
+    link: https://tools.northstar.example/webinar-invite-writer
+    from_request: r-1041
+
+  - id: support-handoff-summary
+    name: Support Handoff Summary
+    purpose: Sums up a Connect support thread for an engineering handoff.
+    owner_name: Sam Okafor
+    owner_team: Support
+    teams: [Support]
+    status: approved
+    allowed_info: [customer_contact, internal_notes]
+    next_review: April 2027
+    link: https://tools.northstar.example/support-handoff-summary
+
+  - id: insight-dashboard-explainer
+    name: Insight Dashboard Explainer
+    purpose: Explains an Insight dashboard in plain words for a customer meeting.
+    owner_name: Ruth Adeyemi
+    owner_team: Customer Success
+    teams: [Customer success, Sales]
+    status: approved
+    allowed_info: [internal_notes, public_only]
+    next_review: December 2026
+    link: https://tools.northstar.example/insight-dashboard-explainer
+
+  - id: case-study-builder
+    name: Case Study Builder
+    purpose: Drafts a case study from customer interview notes.
+    owner_name: Lena Ortiz
+    owner_team: Field Marketing
+    teams: [Marketing, Customer success]
+    status: approved_with_limits
+    allowed_info: [customer_contact, internal_notes]
+    limits: Customer quotes need the customer's written OK before publishing.
+    next_review: May 2027
+    link: https://tools.northstar.example/case-study-builder
+
+  - id: translation-helper
+    name: Translation Helper
+    purpose: Translates approved marketing pages into other languages.
+    owner_name: Ana Ferreira
+    owner_team: International Marketing
+    teams: [International Marketing]
+    status: being_tried
+    allowed_info: [public_only]
+    trial_ends: 2026-12-15
+    link: https://tools.northstar.example/translation-helper
+
+  - id: partner-outreach-drafts
+    name: Partner Outreach Drafts
+    purpose: Writes first messages to possible resellers from a rep's notes.
+    owner_name: Theo Grant
+    owner_team: Partnerships
+    teams: [Partnerships]
+    status: being_tried
+    allowed_info: [internal_notes, public_only]
+    trial_ends: 2027-01-10
+    link: https://tools.northstar.example/partner-outreach-drafts
+
+  - id: subject-line-tester
+    name: Subject Line Tester
+    purpose: Suggested email subject lines for marketing sends.
+    owner_name: Kofi Mensah
+    owner_team: Growth Marketing
+    teams: [Marketing]
+    status: retired
+    allowed_info: [public_only]
+    replaced_by: webinar-invite-writer

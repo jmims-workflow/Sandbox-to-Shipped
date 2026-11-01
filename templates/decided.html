@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "macros.html" import label %}
+{% block title %}Decided before | {% endblock %}
+{% block content %}
+<h1>Decided before</h1>
+<p class="page-intro">Every past decision and why, so you don't have to ask twice. We never show who asked.</p>
+<form class="card filters filters-3" method="get" action="/decided" role="search" aria-label="Search past decisions">
+  <div class="field"><label for="q">Search decisions</label><input type="search" id="q" name="q" value="{{ q }}" placeholder="For example: translate"></div>
+  <div class="field">
+    <label for="outcome">Outcome</label>
+    <select id="outcome" name="outcome">
+      <option value="">All outcomes</option>
+      {% for key, text in OUTCOMES.items() %}<option value="{{ key }}"{% if outcome == key %} selected{% endif %}>{{ text }}</option>{% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn">Search</button>
+</form>
+<p class="count-line" role="status">{{ items|length }} decision{{ "" if items|length == 1 else "s" }}.</p>
+<ul class="list">
+  {% for it in items %}
+  <li class="card">
+    <div class="list-item" style="margin-bottom:8px"><h2>{{ it.title }}</h2>{{ label(it.outcome) }}</div>
+    <p>{{ it.reason }}</p>
+    <div class="callout"><strong>What would change the answer:</strong> {{ it.what_would_change }}</div>
+    <p class="muted small" style="margin:0">Decided {{ it.decided_at|date }}</p>
+  </li>
+  {% else %}
+  <li class="card">Nothing matches that search yet.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

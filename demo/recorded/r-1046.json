@@ -1,0 +1,50 @@
+{
+  "request_id": "r-1046",
+  "matches": [
+    {
+      "tool_id": "support-handoff-summary",
+      "confidence": "possible",
+      "reason": "It already sums up Connect support threads, though it's built for engineering handoffs, not renewal calls."
+    }
+  ],
+  "size_up": {
+    "title": "Renewal risk notes for CSMs",
+    "security_check_needed": true,
+    "bullets": [
+      {
+        "label": "Closest match",
+        "text": "Support Handoff Summary reads Connect support threads, which covers part of this. It doesn't read meeting notes or write anything about renewal risk."
+      },
+      {
+        "label": "Information",
+        "text": "Customer contact details and internal notes, including support history for large accounts. A security check is needed before this could be approved."
+      },
+      {
+        "label": "Sends on its own",
+        "text": "No. The note is for the CSM to read before the call."
+      },
+      {
+        "label": "Worth asking",
+        "text": "Where do the meeting notes live today, and does every CSM on the team have access to all of them already?"
+      }
+    ]
+  },
+  "drafts": {
+    "approve_with_limits": {
+      "reason": "Approved with a limit. A short renewal note before each call will help CSMs prepare, and the security check is done. The note is for internal use only and is never shared with or sent to the customer.",
+      "what_would_change": "If you want to share a version of the note with customers, ask again so we can review that separately."
+    },
+    "approve": {
+      "reason": "Approved. Reading recent support threads and meeting notes to prepare for renewal calls is a good fit, and the security check is done. It starts as being tried with Customer success so we can see how useful the notes are.",
+      "what_would_change": "If the trial shows the notes miss important risks, we'll adjust what the tool reads before moving it to approved."
+    },
+    "use_existing": {
+      "reason": "Support Handoff Summary already sums up Connect support threads and is approved for customer details. Start by using it on an account's recent threads before a renewal call and see how far that gets you.",
+      "what_would_change": "If you need meeting notes and a risk view that the summary can't give you, tell us and we'll look at a separate tool."
+    },
+    "not_approved": {
+      "reason": "We're not approving this as requested because it would read support history and meeting notes for every account, and our security check found that some notes include contract details the CSM team can't see today.",
+      "what_would_change": "A version that reads only support threads and notes the CSM already has access to would likely be approved."
+    }
+  }
+}

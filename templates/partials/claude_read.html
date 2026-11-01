@@ -1,0 +1,13 @@
+{% from "macros.html" import icon %}
+<section class="claude-panel" aria-labelledby="claude-read-h">
+  <h2 id="claude-read-h">Claude's read</h2>
+  <p class="claude-note">{{ icon("spark", 16) }}<span>A starting point. You decide.</span></p>
+  {% if r.size_up %}
+  <ul>
+    {% for b in r.size_up.bullets %}<li><strong>{{ b.label }}:</strong> {{ b.text }}</li>{% endfor %}
+  </ul>
+  {% if size_up_source == "rules" %}<p class="muted small" style="margin-top:12px">Demo builds this from simple rules. Live mode asks Claude.</p>{% endif %}
+  {% else %}
+  <p>Claude's read isn't available for this request. Read the request as it is.</p>
+  {% endif %}
+</section>

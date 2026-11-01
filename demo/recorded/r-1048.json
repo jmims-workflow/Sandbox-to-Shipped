@@ -1,0 +1,50 @@
+{
+  "request_id": "r-1048",
+  "matches": [
+    {
+      "tool_id": "call-recap-writer",
+      "confidence": "close",
+      "reason": "It turns call notes into a follow-up email with a next step, and it's approved for customer and deal details."
+    }
+  ],
+  "size_up": {
+    "title": "Follow-up emails from call notes",
+    "security_check_needed": false,
+    "bullets": [
+      {
+        "label": "Closest match",
+        "text": "Call Recap Writer already turns call notes into a follow-up email with a next step. The one thing this request names that the tool's description doesn't is answering each customer question in the order it was asked."
+      },
+      {
+        "label": "Information",
+        "text": "Customer contact details and deal details. Call Recap Writer is already approved for both, so no new security check is needed if the tool is used as is."
+      },
+      {
+        "label": "Sends on its own",
+        "text": "No. The request describes drafting an email that the rep reads and sends."
+      },
+      {
+        "label": "Worth asking",
+        "text": "Has Priya tried Call Recap Writer? If so, did it skip or reorder the customer's questions?"
+      }
+    ]
+  },
+  "drafts": {
+    "use_existing": {
+      "reason": "Good news: Call Recap Writer already does this, and it's approved for customer and deal details. Try it on your next few calls and see if it covers what you need.",
+      "what_would_change": "If it doesn't answer customer questions in order, tell us and we'll reopen this."
+    },
+    "approve": {
+      "reason": "Approved. Drafting follow-up emails from your call notes is a good fit, and a rep reads and sends every email. It starts as being tried with the Sales team so we can see how well it answers each customer question.",
+      "what_would_change": "If the trial shows it misses customer questions, we'll adjust it before moving it to approved."
+    },
+    "approve_with_limits": {
+      "reason": "Approved with a limit. You can draft follow-up emails from call notes, but any prices or discounts in the email must come from the price sheet, not from your notes, so customers always see numbers we can stand behind.",
+      "what_would_change": "If the price sheet becomes something the tool can read directly, we can look at lifting this limit."
+    },
+    "not_approved": {
+      "reason": "We're not approving this as a new tool because Call Recap Writer already turns call notes into follow-up emails and is approved for customer and deal details. Two tools doing the same job would split owners and training.",
+      "what_would_change": "If Call Recap Writer can't answer customer questions in the order they were asked, tell us what it missed and we'll look again."
+    }
+  }
+}

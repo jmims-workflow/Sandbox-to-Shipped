@@ -1,0 +1,32 @@
+{
+  "request_id": "r-1043",
+  "matches": [],
+  "size_up": {
+    "title": "Proposal pricing from deal notes",
+    "security_check_needed": true,
+    "bullets": [
+      {
+        "label": "Closest match",
+        "text": "Nothing in the inventory fills in proposals today."
+      },
+      {
+        "label": "Information",
+        "text": "Customer details and deal pricing, including discounts. A security check is needed."
+      },
+      {
+        "label": "Main risk",
+        "text": "Prices read from free-form notes could be wrong or out of date, and a wrong price in a sent proposal is hard to walk back."
+      },
+      {
+        "label": "Worth asking",
+        "text": "Would it work if the tool pulled prices from the price sheet and used the notes only for seat counts and terms?"
+      }
+    ]
+  },
+  "drafts": {
+    "approve_with_limits": {
+      "reason": "Approved with one limit. Drafting proposals from deal notes saves time, but a wrong price is hard to take back. The tool must take every price from the price sheet instead of your notes.",
+      "what_would_change": "If the price sheet gets an approved way to record custom discounts, we can look at letting the tool fill those in too."
+    }
+  }
+}

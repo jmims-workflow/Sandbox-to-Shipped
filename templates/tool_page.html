@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, label %}
+{% block title %}{{ t.name }} | {% endblock %}
+{% block content %}
+<a class="back-link" href="/tools">{{ icon("back", 18) }}Tool inventory</a>
+<div class="list-item" style="margin-bottom:8px"><h1 style="margin:0">{{ t.name }}</h1>{{ label(t.status) }}</div>
+<p class="page-intro">{{ t.purpose }}</p>
+
+{% if changed == "shipped" %}<p class="notice notice-ok" role="status">Shipped. {{ t.name }} is now {{ TOOL_STATUSES[t.status]|lower }}.</p>{% endif %}
+{% if changed == "retired" %}<p class="notice notice-ok" role="status">{{ t.name }} is retired.</p>{% endif %}
+{% if changed == "edited" %}<p class="notice notice-ok" role="status">Changes saved.</p>{% endif %}
+{% if error %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endif %}
+
+<div class="two-col">
+  <div class="stack">
+    <section class="card" aria-labelledby="about-h">
+      <h2 id="about-h">About this tool</h2>
+      <dl class="facts">
+        <div><dt>Status</dt><dd>{{ TOOL_STATUSES[t.status] }}{% if t.status == "being_tried" %}, by {{ join_words(t.teams) }} until {{ t.trial_ends|date }}{% endif %}</dd></div>
+        <div><dt>Okay to use with</dt><dd>{% for i in t.allowed_info %}{{ INFO_KINDS[i] }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd></div>
+        {% if t.limits %}<div><dt>Limit</dt><dd>{{ t.limits }}</dd></div>{% endif %}
+        <div><dt>Owner</dt><dd>{{ t.owner_name }}, {{ t.owner_team }}. Ask them about this tool.</dd></div>
+        <div><dt>Used by</dt><dd>{{ join_words(t.teams) }}</dd></div>
+        {% if t.next_review %}<div><dt>Next review</dt><dd>{{ t.next_review }}</dd></div>{% endif %}
+        {% if t.replaced_by and tools.get(t.replaced_by) %}<div><dt>Replaced by</dt><dd><a href="/tools/{{ t.replaced_by }}">{{ tools[t.replaced_by].name }}</a></dd></div>{% endif %}
+      </dl>
+      {% if t.link and t.status != "retired" %}<p style="margin:16px 0 0"><a class="btn" href="{{ t.link }}" rel="noopener">Open the tool {{ icon("external", 16) }}</a></p>{% endif %}
+    </section>
+
+    {% if viewer == "reviewer" %}
+    <section class="card" aria-labelledby="manage-h">
+      <h2 id="manage-h">Manage this tool</h2>
+      {% if mode == "demo" %}<p class="muted small">{{ TOOL_READONLY }}</p>{% endif %}
+      {% if t.status == "being_tried" %}
+      <form method="post" action="/tools/{{ t.id }}/ship" class="subform">
+        <fieldset class="field" style="margin-bottom:12px">
+          <legend>Ship it: move from being tried to</legend>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="to_status" value="approved" checked> Approved</label>
+            <label class="choice"><input type="radio" name="to_status" value="approved_with_limits"> Approved with limits</label>
+          </div>
+        </fieldset>
+        <div class="field">
+          <label for="ship-limits">Limits (needed for Approved with limits)</label>
+          <textarea id="ship-limits" name="limits" rows="2"></textarea>
+        </div>
+        <button type="submit" class="btn"{% if mode == "demo" %} disabled{% endif %}>Ship it</button>
+      </form>
+      {% endif %}
+      {% if t.status != "retired" %}
+      <form method="post" action="/tools/{{ t.id }}/retire" class="subform">
+        <div class="field">
+          <label for="replaced_by">Retire this tool. Replacement (optional)</label>
+          <select id="replaced_by" name="replaced_by">
+            <option value="">No replacement</option>
+            {% for x in replacements|sort(attribute="name") %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-secondary"{% if mode == "demo" %} disabled{% endif %}>Retire</button>
+      </form>
+      {% endif %}
+      <a class="btn btn-secondary" href="/tools/{{ t.id }}/edit">Edit</a>
+    </section>
+    {% endif %}
+  </div>
+
+  <div class="stack">
+    <section class="card" aria-labelledby="origin-h">
+      <h2 id="origin-h">How it got here</h2>
+      {% if origin and origin_decision %}
+        <p><strong>{{ origin.title }}</strong></p>
+        <p>{{ label(origin_decision.outcome) }}</p>
+        <p>{{ origin_decision.reason }}</p>
+        <p class="muted small" style="margin:0">Decided {{ origin_decision.decided_at|date }}. <a href="/decided?q={{ origin.title|urlencode }}">See it in Decided before</a></p>
+      {% else %}
+        <p style="margin:0">This tool was in use before requests came through {{ APP_NAME }}.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

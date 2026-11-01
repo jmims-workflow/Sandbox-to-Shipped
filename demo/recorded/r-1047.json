@@ -1,0 +1,50 @@
+{
+  "request_id": "r-1047",
+  "matches": [
+    {
+      "tool_id": "case-study-builder",
+      "confidence": "possible",
+      "reason": "It works from customer case study material, but it drafts the case study itself rather than the social posts that follow."
+    }
+  ],
+  "size_up": {
+    "title": "Social posts from case studies",
+    "security_check_needed": false,
+    "bullets": [
+      {
+        "label": "Closest match",
+        "text": "Case Study Builder is the nearest tool, but Owen says it stops at the case study. The gap is turning a published case study into short posts and a newsletter blurb. I'm not sure whether Lena Ortiz would want to extend her tool or keep this separate."
+      },
+      {
+        "label": "Information",
+        "text": "Customer names and quotes, published on LinkedIn. The content comes from case studies that are already public, so a security check is likely not needed. The Case Study Builder limit on customer quotes should carry over."
+      },
+      {
+        "label": "Who sends it",
+        "text": "Unclear. The request doesn't say whether a person posts each one or whether posts go out on a schedule."
+      },
+      {
+        "label": "Worth asking",
+        "text": "Will someone on the team read and post each draft, or does Owen want posts to publish automatically?"
+      }
+    ]
+  },
+  "drafts": {
+    "approve_with_limits": {
+      "reason": "Approved with a limit. Turning published case studies into social posts and newsletter blurbs is a good use, and the content is already public. Any customer quote still needs that customer's written OK, the same as in Case Study Builder.",
+      "what_would_change": "If every quote in a case study already has written approval on file, we can look at a lighter check."
+    },
+    "approve": {
+      "reason": "Approved. The posts come from case studies that are already public, and someone on your team will post each one. It starts as being tried with Marketing so we can see how the drafts land.",
+      "what_would_change": "If you want posts to go out on a schedule without a person checking each one, ask again, since that changes the answer."
+    },
+    "use_existing": {
+      "reason": "Case Study Builder already works from the same customer material, and Lena Ortiz is open to adding social posts and a newsletter blurb to it. Using one tool keeps the customer quote rules in one place.",
+      "what_would_change": "If adding posts to Case Study Builder slows it down or doesn't fit your timing, tell us and we'll look at a separate tool."
+    },
+    "not_approved": {
+      "reason": "We're not approving this as requested because posts would publish customer names and quotes without a clear step where a person checks them. We want every public post about a customer to be read first.",
+      "what_would_change": "A version where someone on Marketing reviews and posts each draft would likely be approved."
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, label %}
+{% block title %}Tool inventory | {% endblock %}
+{% block content %}
+<h1>Tool inventory</h1>
+<p class="page-intro">Every AI tool Northstar has approved, who owns it, and what information it's okay to use with.</p>
+
+<form class="card filters" method="get" action="/tools" role="search" aria-label="Filter tools">
+  <div class="field">
+    <label for="q">Search tools</label>
+    <input type="search" id="q" name="q" value="{{ filters.q }}" placeholder="For example: email">
+  </div>
+  <div class="field">
+    <label for="team">Team</label>
+    <select id="team" name="team">
+      <option value="">All teams</option>
+      {% for t in teams %}<option value="{{ t }}"{% if filters.team == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      {% for key, text in status_filters.items() %}<option value="{{ key }}"{% if filters.status == key %} selected{% endif %}>{{ text }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="info">Okay to use with</label>
+    <select id="info" name="info">
+      <option value="">Any information</option>
+      {% for key, text in INFO_KINDS.items() %}<option value="{{ key }}"{% if filters.info == key %} selected{% endif %}>{{ text }}</option>{% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn">Show tools</button>
+</form>
+
+<p class="count-line" role="status">Showing {{ tools|length }} of {{ total }} tools. {{ counts.ready }} ready to use, {{ counts.being_tried }} being tried{% if counts.retired %}, {{ counts.retired }} retired{% endif %}.</p>
+
+{% if tools %}
+<ul class="tool-grid" style="list-style:none;margin:0;padding:0">
+  {% for t in tools %}
+  <li class="card tool-card">
+    <h2><a href="/tools/{{ t.id }}">{{ t.name }}</a></h2>
+    <div>{{ label(t.status) }}</div>
+    <p>{{ t.purpose }}</p>
+    {% if t.status == "approved_with_limits" %}
+    <p><strong>Limit:</strong> {{ t.limits }}</p>
+    {% else %}
+    <p><strong>Okay to use with:</strong> {% for i in t.allowed_info %}{{ INFO_KINDS[i]|lower }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>
+    {% endif %}
+    <p class="muted small">{% with tools=all_tools %}{% include "partials/tool_secondary.html" %}{% endwith %}</p>
+    {% if t.link and t.status != "retired" %}<a class="open" href="{{ t.link }}" rel="noopener">Open the tool {{ icon("external", 16) }}<span class="visually-hidden">: {{ t.name }}</span></a>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="card"><p style="margin:0">No tools match these filters. Try fewer filters, or <a href="/">request a tool</a>.</p></div>
+{% endif %}
+{% endblock %}

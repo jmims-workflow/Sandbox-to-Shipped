@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Welcome | {% endblock %}
+{% block content %}
+<h1>Welcome to {{ APP_NAME }}</h1>
+<p class="page-intro">What should we call you? Your name shows on requests you send and decisions you make. It's saved in this browser only.</p>
+<form class="card" method="post" action="/welcome" style="max-width:520px">
+  <input type="hidden" name="next" value="{{ next }}">
+  <div class="field">
+    <label for="name">Your name</label>
+    <input type="text" id="name" name="name" value="{{ name }}" autocomplete="name"{% if error %} aria-invalid="true" aria-describedby="name-error"{% endif %}>
+    {% if error %}<p class="field-error" id="name-error" role="alert">{{ error }}</p>{% endif %}
+  </div>
+  <button type="submit" class="btn">Continue</button>
+</form>
+{% endblock %}

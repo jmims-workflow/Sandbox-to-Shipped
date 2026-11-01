@@ -1,0 +1,11 @@
+{% from "macros.html" import label %}
+<section class="card" aria-labelledby="req-title">
+  <div class="list-item" style="margin-bottom:8px">
+    <h2 id="req-title" style="margin:0">{{ r.title }}</h2>
+    {{ label(r.status) }}
+  </div>
+  <p class="muted small">{{ r.requester_name }}. {{ r.team }}. {{ HOW_OFTEN[r.how_often] }}. {{ WHO_USES[r.who_uses] }}. {% for i in r.info %}{{ INFO_KINDS[i] }}{% if not loop.last %}; {% endif %}{% endfor %}.</p>
+  <p>{{ r.task }}</p>
+  {% if r.extra %}<p><strong>Anything else:</strong> {{ r.extra }}</p>{% endif %}
+  <p class="muted small" style="margin:0">{{ saw_line }}</p>
+</section>
