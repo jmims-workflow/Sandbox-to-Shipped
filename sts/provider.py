@@ -1,7 +1,7 @@
 """Every Claude call lives here.
 
-Claude sizes up requests, suggests matches and drafts reasons. It never chooses
-an outcome: none of the response shapes below has an outcome field, and the
+Claude sizes up requests, suggests matches (and up to one related past
+decision) and drafts reasons. It never chooses an outcome: none of the response shapes below has an outcome field, and the
 outcome passed to draft_reason() always comes from the reviewer.
 
 Responses use the SDK's structured output support (messages.parse with a
@@ -15,7 +15,7 @@ from typing import Any, Literal, Optional, Protocol
 
 from pydantic import BaseModel, Field
 
-from .matching import clean_matches, eligible_tools, word_overlap_matches
+from .matching import clean_matches, clean_related, eligible_tools, word_overlap_matches, word_overlap_related
 from .models import CUSTOMER_INFO, HOW_OFTEN, INFO_KINDS, OUTCOMES, WHO_USES, Request, Tool
 
 
@@ -28,8 +28,14 @@ class MatchItem(BaseModel):
     reason: str = Field(description="One plain sentence on why this tool may fit.")
 
 
+class RelatedDecision(BaseModel):
+    request_id: str = Field(description="The id of a past decision from the list you were given.")
+    reason: str = Field(description="One plain sentence on why it's related.")
+
+
 class MatchResult(BaseModel):
     matches: list[MatchItem] = Field(default_factory=list, max_length=2)
+    related_decision: Optional[RelatedDecision] = None
 
 
 class Bullet(BaseModel):
@@ -53,6 +59,8 @@ class MatchOutcome(BaseModel):
 
     matches: list[dict[str, str]]
     source: Literal["claude", "recorded", "word"]
+    # Up to one related past decision: {"request_id", "reason"}, checked against the list sent.
+    related: Optional[dict[str, str]] = None
 
 
 class ClaudeUnavailable(RuntimeError):
@@ -62,7 +70,9 @@ class ClaudeUnavailable(RuntimeError):
 class Provider(Protocol):
     name: str
 
-    def find_matches(self, task: str, info: list[str], inventory: list[Tool]) -> MatchOutcome: ...
+    def find_matches(
+        self, task: str, info: list[str], inventory: list[Tool], past_decisions: Optional[list[dict]] = None
+    ) -> MatchOutcome: ...
 
     def size_up(
         self, request: Request, inventory: list[Tool], recent_decisions: list[dict]
@@ -94,7 +104,12 @@ Your job: compare the request with the tool inventory and pick up to two tools
 that may already do the job. Use only tool ids from the inventory. Say "close"
 when you are fairly sure the tool does the job, and "possible" when you are less
 sure. Each reason is one short sentence that names what the tool does that fits.
-If nothing fits, return an empty list. It is fine to return no matches."""
+If nothing fits, return an empty list. It is fine to return no matches.
+
+You may also get a list of past decisions. If one of them was about the same or a
+very similar task, return it as related_decision: its id from that list and one
+short sentence on why it is related. Return at most one. If none is clearly
+related, leave related_decision empty."""
 
 SIZE_UP_INSTRUCTIONS = SHARED_RULES + """
 
@@ -131,6 +146,24 @@ def _inventory_json(inventory: list[Tool]) -> str:
                 "limits": t.limits,
             }
             for t in inventory
+        ],
+        indent=1,
+    )
+
+
+def past_decisions_json(past_decisions: list[dict]) -> str:
+    """Past decisions for the match call. Only these fields go out: never who asked."""
+    return json.dumps(
+        [
+            {
+                "id": d["id"],
+                "title": d["title"],
+                "task": d["task"],
+                "outcome": OUTCOMES.get(d["outcome"], d["outcome"]),
+                "reason": d["reason"],
+                "what_would_change": d["what_would_change"],
+            }
+            for d in past_decisions
         ],
         indent=1,
     )
@@ -188,19 +221,23 @@ class ClaudeProvider:
             raise ClaudeUnavailable("no structured output")
         return parsed
 
-    def find_matches(self, task: str, info: list[str], inventory: list[Tool]) -> MatchOutcome:
+    def find_matches(self, task: str, info: list[str], inventory: list[Tool], past_decisions=None) -> MatchOutcome:
         candidates = eligible_tools(inventory)
-        if not candidates or not task.strip():
+        past = list(past_decisions or [])
+        if (not candidates and not past) or not task.strip():
             return MatchOutcome(matches=[], source="claude")
-        user = (
-            "Tool inventory:\n"
-            + _inventory_json(candidates)
-            + "\n\nThe request:\n"
-            + _wrap(task + "\nInformation: " + ", ".join(INFO_KINDS.get(i, i) for i in info))
-        )
+        user = "Tool inventory:\n" + _inventory_json(candidates)
+        if past:
+            # Past decisions were written by employees too, so they are wrapped as data.
+            user += "\n\nPast decisions:\n" + _wrap(past_decisions_json(past))
+        user += "\n\nThe request:\n" + _wrap(task + "\nInformation: " + ", ".join(INFO_KINDS.get(i, i) for i in info))
         # Low effort keeps matching quick and steady.
         result = self._ask(MATCH_INSTRUCTIONS, user, MatchResult, effort="low")
-        return MatchOutcome(matches=clean_matches(result.matches, inventory), source="claude")
+        return MatchOutcome(
+            matches=clean_matches(result.matches, inventory),
+            source="claude",
+            related=clean_related(result.related_decision, past),
+        )
 
     def size_up(self, request: Request, inventory: list[Tool], recent_decisions: list[dict]) -> dict:
         user = (
@@ -249,16 +286,19 @@ class DemoProvider:
     def recorded_for_task(self, task: str) -> Optional[str]:
         return self._by_task.get(_norm(task))
 
-    def find_matches(self, task, info, inventory) -> MatchOutcome:
+    def find_matches(self, task, info, inventory, past_decisions=None) -> MatchOutcome:
+        past = list(past_decisions or [])
         rid = self.recorded_for_task(task)
         if rid:
             return MatchOutcome(
                 matches=clean_matches(self.recorded[rid].get("matches", []), inventory),
                 source="recorded",
+                related=clean_related(self.recorded[rid].get("related_decision"), past),
             )
         return MatchOutcome(
             matches=clean_matches(word_overlap_matches(task, inventory), inventory),
             source="word",
+            related=clean_related(word_overlap_related(task, past), past),
         )
 
     def size_up(self, request, inventory, recent_decisions) -> dict:

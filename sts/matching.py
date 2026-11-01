@@ -8,11 +8,12 @@ clean_matches() so only real, usable tools ever reach the screen.
 from __future__ import annotations
 
 import re
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 from .models import MATCHABLE_STATUSES, Tool
 
 MAX_MATCHES = 2
+RELATED_MIN_SHARED = 3
 CONFIDENCE = ("close", "possible")
 
 STOPWORDS = set(
@@ -53,6 +54,21 @@ def clean_matches(raw: Iterable[Any], inventory: Iterable[Tool]) -> list[dict[st
     return cleaned
 
 
+def clean_related(raw: Any, past_decisions: Iterable[dict]) -> Optional[dict[str, str]]:
+    """Keep a related past decision only if its id was in the list sent. Otherwise drop it."""
+    if raw is None:
+        return None
+    if hasattr(raw, "model_dump"):
+        raw = raw.model_dump()
+    if not isinstance(raw, dict):
+        return None
+    request_id = str(raw.get("request_id", "")).strip()
+    reason = str(raw.get("reason", "")).strip()
+    if not request_id or request_id not in {str(d.get("id")) for d in past_decisions}:
+        return None
+    return {"request_id": request_id, "reason": reason}
+
+
 def _words(text: str) -> set[str]:
     words = set()
     for w in re.findall(r"[a-z]+", (text or "").lower()):
@@ -88,3 +104,18 @@ def word_overlap_matches(task: str, inventory: Iterable[Tool]) -> list[dict[str,
             }
         )
     return out
+
+
+def word_overlap_related(task: str, past_decisions: Iterable[dict]) -> Optional[dict[str, str]]:
+    """The demo's simple word match against past decisions. Returns the best one, or None."""
+    task_words = _words(task)
+    best = None
+    for d in past_decisions:
+        shared = task_words & _words(f"{d.get('title', '')} {d.get('task', '')}")
+        if len(shared) >= RELATED_MIN_SHARED and (best is None or len(shared) > len(best[1])):
+            best = (d, sorted(shared))
+    if best is None:
+        return None
+    d, shared = best
+    words = ", ".join(shared[:-1]) + " and " + shared[-1]
+    return {"request_id": str(d["id"]), "reason": f"It was about a similar task: it shares the words {words} with yours."}

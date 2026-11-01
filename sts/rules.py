@@ -6,18 +6,24 @@ from Claude's output: the outcome only ever comes from the reviewer's form.
 
 from __future__ import annotations
 
+import calendar
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime
-from typing import Optional
+from datetime import date, datetime, timedelta
+from typing import Any, Optional
+from urllib.parse import urlparse
 
 from .models import (
     CUSTOMER_INFO,
     INFO_KINDS,
+    JOURNEY_EVENTS,
+    KEPT_USING,
+    MAX_LINE,
     MAX_TEXT,
     OUTCOMES,
     READY_STATUSES,
     SECURITY_CHECK,
+    TOOL_STATUSES,
     Decision,
     Request,
     Tool,
@@ -28,6 +34,42 @@ APPROVALS = ("approve", "approve_with_limits")
 
 MSG_SECURITY = "Finish the security check before approving."
 MSG_SENDS_WARNING = "Northstar doesn't approve tools that send to customers on their own."
+MSG_STOPPED = "A tool the team stopped using isn't ready to ship. Extend the trial or retire it."
+MAX_EXTENSION_DAYS = 60
+READY_TOTAL = 4
+
+
+def long_date(value: date) -> str:
+    """March 5, 2027"""
+    return f"{value:%B} {value.day}, {value.year}"
+
+
+def add_months(d: date, months: int) -> date:
+    y, m = divmod(d.month - 1 + months, 12)
+    year, month = d.year + y, m + 1
+    return date(year, month, min(d.day, calendar.monthrange(year, month)[1]))
+
+
+def format_month(d: date) -> str:
+    """March 2027"""
+    return f"{d:%B} {d.year}"
+
+
+MONTHS = {name.lower(): i for i, name in enumerate(calendar.month_name) if name}
+
+
+def parse_month(text: Optional[str]) -> Optional[date]:
+    """Read "March 2027" or "2027-03" as the first day of that month. None if it can't."""
+    text = (text or "").strip()
+    if m := re.fullmatch(r"(\d{4})-(\d{1,2})", text):
+        year, month = int(m.group(1)), int(m.group(2))
+    elif m := re.fullmatch(r"([A-Za-z]+)\s+(\d{4})", text):
+        month, year = MONTHS.get(m.group(1).lower(), 0), int(m.group(2))
+    else:
+        return None
+    if not 1 <= month <= 12:
+        return None
+    return date(year, month, 1)
 
 
 def too_long_message(label: str, text: str) -> Optional[str]:
@@ -181,14 +223,17 @@ def build_decision(
     )
 
 
-def build_new_tool(form: DecisionForm, request: Request, existing_ids: set[str]) -> Tool:
+def build_new_tool(
+    form: DecisionForm, request: Request, existing_ids: set[str], today: Optional[date] = None
+) -> Tool:
     """Approvals create a tool. New tools always start as being tried."""
+    today = today or date.today()
     nt = form.new_tool
     base = slugify(nt.name)
     tool_id, n = base, 2
     while tool_id in existing_ids:
         tool_id, n = f"{base}-{n}", n + 1
-    return Tool(
+    tool = Tool(
         id=tool_id,
         name=nt.name.strip(),
         purpose=nt.purpose.strip(),
@@ -201,35 +246,295 @@ def build_new_tool(form: DecisionForm, request: Request, existing_ids: set[str])
         trial_ends=nt.trial_ends,
         from_request=request.id,
         owner_agreed=True,
+        security_check=form.checklist.security_check,
+        ready_check={},
+        journey=[],
     )
-
-
-class ToolChangeError(ValueError):
-    pass
-
-
-def ship_tool(tool: Tool, to_status: str, limits: str = "") -> Tool:
-    """Move a tool from being tried to approved or approved with limits."""
-    if tool.status != "being_tried":
-        raise ToolChangeError("Only a tool that is being tried can be shipped.")
-    if to_status not in READY_STATUSES:
-        raise ToolChangeError("Choose Approved or Approved with limits.")
-    if to_status == "approved_with_limits" and not limits.strip():
-        raise ToolChangeError("Write the limits that come with this approval.")
-    tool.status = to_status
-    tool.limits = limits.strip() if to_status == "approved_with_limits" else None
-    tool.trial_ends = None
+    add_event(tool, "requested", request.submitted_at.date())
+    trial = f" until {long_date(nt.trial_ends)}" if nt.trial_ends else ""
+    add_event(tool, "being_tried", today, f"By {request.team}{trial}.")
     return tool
 
 
-def retire_tool(tool: Tool, replaced_by: str = "", inventory: Optional[list[Tool]] = None) -> Tool:
-    """Retire any tool. A replacement is optional."""
-    if replaced_by:
-        ids = {t.id for t in (inventory or []) if t.status != "retired" and t.id != tool.id}
-        if replaced_by not in ids:
-            raise ToolChangeError("Choose a replacement from the inventory, or leave it empty.")
+class ToolChangeError(ValueError):
+    """A tool change that can't be made. `errors` maps form fields to messages."""
+
+    def __init__(self, message: str, field: str = "", errors: Optional[dict[str, str]] = None):
+        super().__init__(message)
+        self.errors = errors or ({field: message} if field else {})
+
+
+def add_event(tool: Tool, kind: str, on: date, note: Optional[str] = None) -> None:
+    """Add a step to the tool's journey."""
+    assert kind in JOURNEY_EVENTS, kind
+    tool.journey = list(tool.journey or []) + [
+        {"kind": kind, "date": on.isoformat(), "note": (note or "").strip() or None}
+    ]
+
+
+def one_line(text: str) -> str:
+    return " ".join((text or "").split())
+
+
+# ---- Trial ended and Review due ---------------------------------------------------
+
+
+def trial_ended(tool: Tool, today: date) -> bool:
+    """A being tried tool whose trial end date has passed. The end date itself still counts."""
+    return tool.status == "being_tried" and tool.trial_ends is not None and tool.trial_ends < today
+
+
+def review_due(tool: Tool, today: date) -> bool:
+    """An approved tool whose next review month has passed. The month itself still counts."""
+    if tool.status not in READY_STATUSES:
+        return False
+    month = parse_month(tool.next_review)
+    return month is not None and (month.year, month.month) < (today.year, today.month)
+
+
+def tool_flags(tool: Tool, today: date) -> list[str]:
+    flags = []
+    if trial_ended(tool, today):
+        flags.append("trial_ended")
+    if review_due(tool, today):
+        flags.append("review_due")
+    return flags
+
+
+def _ago(days: int) -> str:
+    if days <= 0:
+        return "today"
+    return "yesterday" if days == 1 else f"{days} days ago"
+
+
+def needs_decision(tools: list[Tool], today: date) -> list[dict[str, Any]]:
+    """Tools a reviewer should look at: trials that ran out and reviews that came due."""
+    items = []
+    for t in sorted(tools, key=lambda t: t.name):
+        if trial_ended(t, today):
+            team = t.teams[0] if t.teams else t.owner_team
+            line = f"Being tried by {team}. Trial ended {_ago((today - t.trial_ends).days)}."
+            items.append({"tool": t, "flag": "trial_ended", "line": line})
+        elif review_due(t, today):
+            line = (
+                f"{TOOL_STATUSES[t.status]}. Owner {t.owner_name}, {t.owner_team}. "
+                f"Review was due in {t.next_review}."
+            )
+            items.append({"tool": t, "flag": "review_due", "line": line})
+    return items
+
+
+# ---- The ready to ship check -------------------------------------------------------
+
+
+@dataclass
+class ReadyItem:
+    key: str
+    label: str
+    done: bool
+
+
+def valid_test_link(link: str) -> bool:
+    """Test result links must be http or https web addresses."""
+    link = (link or "").strip()
+    if not link or any(c.isspace() for c in link):
+        return False
+    parsed = urlparse(link)
+    return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+
+def ready_items(tool: Tool) -> list[ReadyItem]:
+    rc = tool.ready_check or {}
+    link = str(rc.get("test_link") or "").strip()
+    return [
+        ReadyItem("owner", "Owner agreed to own it", bool(tool.owner_agreed)),
+        ReadyItem(
+            "security", "Security check done or not needed", tool.security_check in ("done", "not_needed")
+        ),
+        ReadyItem(
+            "kept_using",
+            "The team kept using it",
+            rc.get("kept_using") in ("regularly", "sometimes") and bool(str(rc.get("went_wrong") or "").strip()),
+        ),
+        ReadyItem(
+            "tested",
+            "How it was tested",
+            bool(str(rc.get("how_tested") or "").strip()) and (not link or valid_test_link(link)),
+        ),
+    ]
+
+
+def ready_count(tool: Tool) -> int:
+    return sum(item.done for item in ready_items(tool))
+
+
+def team_stopped(tool: Tool) -> bool:
+    return (tool.ready_check or {}).get("kept_using") == "stopped"
+
+
+def can_ship(tool: Tool) -> bool:
+    return tool.status == "being_tried" and not team_stopped(tool) and ready_count(tool) == READY_TOTAL
+
+
+def save_ready_answers(
+    tool: Tool, kept_using: str, went_wrong: str, how_tested: str, test_link: str
+) -> None:
+    """Save the reviewer's answers. Answers can be saved a part at a time."""
+    if tool.status != "being_tried":
+        raise ToolChangeError("Only a tool that is being tried has a ready to ship check.")
+    kept_using, went_wrong = kept_using.strip(), went_wrong.strip()
+    how_tested, test_link = how_tested.strip(), test_link.strip()
+    errors: dict[str, str] = {}
+    if kept_using and kept_using not in KEPT_USING:
+        errors["kept_using"] = "Choose whether the team kept using it."
+    if went_wrong and not kept_using:
+        errors["kept_using"] = "Answer whether the team kept using it."
+    if kept_using and not went_wrong:
+        errors["went_wrong"] = "Say whether anything went wrong. \"Nothing\" is a fine answer."
+    if test_link and not valid_test_link(test_link):
+        errors["test_link"] = "Test result links start with http:// or https://"
+    if test_link and not how_tested:
+        errors["how_tested"] = "Say how it was tested."
+    for key, label, text in (
+        ("went_wrong", "What went wrong", went_wrong),
+        ("how_tested", "How it was tested", how_tested),
+        ("test_link", "The link", test_link),
+    ):
+        if msg := too_long_message(label, text):
+            errors[key] = msg
+    if errors:
+        raise ToolChangeError("Please fix the answers below.", errors=errors)
+    rc = dict(tool.ready_check or {})
+    rc.update(kept_using=kept_using, went_wrong=went_wrong, how_tested=how_tested, test_link=test_link)
+    tool.ready_check = rc
+
+
+def record_security_check(tool: Tool, done: bool, on: Optional[date], note: str, today: date) -> None:
+    """Record a security check that was needed when the tool was approved."""
+    if tool.status != "being_tried":
+        raise ToolChangeError("Only a tool that is being tried has a ready to ship check.")
+    if tool.security_check != "needed":
+        raise ToolChangeError("The security check is already covered for this tool.")
+    note = one_line(note)
+    errors: dict[str, str] = {}
+    if not done:
+        errors["security_done"] = "Check \"Security check done\" to record it."
+    if on is None:
+        errors["security_date"] = "Pick the date the check was done."
+    elif on > today:
+        errors["security_date"] = "The date can't be in the future."
+    if not note:
+        errors["security_note"] = "Add a one-line note about the check."
+    elif len(note) > MAX_LINE:
+        errors["security_note"] = f"Keep the note to one line, under {MAX_LINE} characters."
+    if errors:
+        raise ToolChangeError("Please fix the security check below.", errors=errors)
+    tool.security_check = "done"
+    tool.ready_check = {**(tool.ready_check or {}), "security_date": on.isoformat(), "security_note": note}
+    add_event(tool, "security_done", on, note)
+
+
+def ship_tool(tool: Tool, to_status: str, limits: str = "", today: Optional[date] = None) -> Tool:
+    """Move a tool from being tried to approved or approved with limits.
+
+    This is the promotion gate: it refuses until all four ready to ship items are done.
+    """
+    if tool.status != "being_tried":
+        raise ToolChangeError("Only a tool that is being tried can be shipped.")
+    if team_stopped(tool):
+        raise ToolChangeError(MSG_STOPPED)
+    n = ready_count(tool)
+    if n < READY_TOTAL:
+        raise ToolChangeError(
+            f"Ship it opens when all {READY_TOTAL} items are ready. {n} of {READY_TOTAL} ready now."
+        )
+    if to_status not in READY_STATUSES:
+        raise ToolChangeError("Choose Approved or Approved with limits.", field="to_status")
+    if to_status == "approved_with_limits" and not limits.strip():
+        raise ToolChangeError("Write the limits that come with this approval.", field="ship_limits")
+    if msg := too_long_message("The limits", limits):
+        raise ToolChangeError(msg, field="ship_limits")
+    tool.status = to_status
+    tool.limits = limits.strip() if to_status == "approved_with_limits" else None
+    tool.trial_ends = None
+    note = TOOL_STATUSES[to_status] + (f". Limit: {tool.limits}" if tool.limits else ".")
+    add_event(tool, "shipped", today or date.today(), note)
+    return tool
+
+
+def extend_trial(tool: Tool, new_end: Optional[date], today: date) -> Tool:
+    """A trial can be extended once, by up to 60 days past the current end date."""
+    if tool.status != "being_tried" or tool.trial_ends is None:
+        raise ToolChangeError("Only a tool that is being tried can have its trial extended.")
+    if tool.trial_extended:
+        raise ToolChangeError("This trial was already extended once. Ship it or retire it.", field="new_end")
+    latest = tool.trial_ends + timedelta(days=MAX_EXTENSION_DAYS)
+    if new_end is None:
+        raise ToolChangeError("Pick the new end date.", field="new_end")
+    if new_end <= tool.trial_ends:
+        raise ToolChangeError(
+            f"Pick a date after the current end date, {long_date(tool.trial_ends)}.", field="new_end"
+        )
+    if new_end > latest:
+        raise ToolChangeError(
+            f"A trial can be extended by up to {MAX_EXTENSION_DAYS} days, to {long_date(latest)} at the latest.",
+            field="new_end",
+        )
+    if new_end <= today:
+        raise ToolChangeError("Pick a date after today.", field="new_end")
+    tool.trial_ends = new_end
+    tool.trial_extended = True
+    add_event(tool, "extended", today, f"New end date {long_date(new_end)}.")
+    return tool
+
+
+def retire_tool(
+    tool: Tool,
+    reason: str,
+    replaced_by: str = "",
+    inventory: Optional[list[Tool]] = None,
+    today: Optional[date] = None,
+) -> Tool:
+    """Retire any tool, whatever its check shows. Needs a one-line reason; a replacement is optional."""
+    if tool.status == "retired":
+        raise ToolChangeError("This tool is already retired.")
+    reason = one_line(reason)
+    if not reason:
+        raise ToolChangeError("Write a one-line reason for retiring it.", field="retire_reason")
+    if len(reason) > MAX_LINE:
+        raise ToolChangeError(f"Keep the reason to one line, under {MAX_LINE} characters.", field="retire_reason")
+    names = {t.id: t.name for t in (inventory or []) if t.status != "retired" and t.id != tool.id}
+    if replaced_by and replaced_by not in names:
+        raise ToolChangeError("Choose a replacement from the inventory, or leave it empty.", field="replaced_by")
     tool.status = "retired"
     tool.replaced_by = replaced_by or None
+    note = reason + (f" Replaced by {names[replaced_by]}." if replaced_by else "")
+    add_event(tool, "retired", today or date.today(), note)
+    return tool
+
+
+REVIEW_MONTHS = 6
+
+
+def mark_reviewed(
+    tool: Tool, still_in_use: str, change: str, next_review: Optional[date], today: date
+) -> Tool:
+    """Record a review and set the next one, six months later by default."""
+    if tool.status not in READY_STATUSES:
+        raise ToolChangeError("Only an approved tool has reviews.")
+    if still_in_use not in YES_NO:
+        raise ToolChangeError("Answer whether it's still in use.", field="still_in_use")
+    change = change.strip()
+    if msg := too_long_message("Anything to change", change):
+        raise ToolChangeError(msg, field="review_change")
+    next_review = next_review or add_months(today, REVIEW_MONTHS)
+    if (next_review.year, next_review.month) <= (today.year, today.month):
+        raise ToolChangeError("Pick a month after this one for the next review.", field="next_review_month")
+    tool.next_review = format_month(next_review)
+    note = "Still in use: " + ("Yes." if still_in_use == "yes" else "No.")
+    if change:
+        note += f" To change: {change}"
+    add_event(tool, "reviewed", today, note)
     return tool
 
 

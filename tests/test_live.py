@@ -101,13 +101,16 @@ def test_save_for_later_and_question_flow(live_app, live_client):
 def test_ship_it_and_retire_in_the_app(live_app, live_client):
     store = seed(live_app)
     as_reviewer(live_client)
+    live_client.post("/tools/translation-helper/check", data={
+        "kept_using": "regularly", "went_wrong": "Nothing", "how_tested": "Tried it on ten pages."})
     live_client.post("/tools/translation-helper/ship", data={"to_status": "approved"})
     assert store.get_tool("translation-helper").status == "approved"
-    live_client.post("/tools/partner-outreach-drafts/retire", data={"replaced_by": "call-recap-writer"})
+    live_client.post("/tools/partner-outreach-drafts/retire",
+                     data={"retire_reason": "Call Recap Writer covers it.", "replaced_by": "call-recap-writer"})
     t = store.get_tool("partner-outreach-drafts")
     assert t.status == "retired" and t.replaced_by == "call-recap-writer"
     live_client.cookies.set("sts_viewer", "requester")
-    r = live_client.post("/tools/proposal-drafter/retire", data={})
+    r = live_client.post("/tools/proposal-drafter/retire", data={"retire_reason": "Not needed."})
     assert r.status_code == 403
     assert store.get_tool("proposal-drafter").status == "approved_with_limits"
 

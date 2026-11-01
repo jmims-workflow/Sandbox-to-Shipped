@@ -15,10 +15,12 @@ from fastapi.templating import Jinja2Templates
 from . import APP_NAME, TAGLINE
 from .config import ROOT, Settings
 from .demo_data import load_demo_data
-from .matching import clean_matches
+from .matching import clean_matches, clean_related
 from .models import (
     HOW_OFTEN,
     INFO_KINDS,
+    JOURNEY_EVENTS,
+    KEPT_USING,
     OUTCOME_CHOICES,
     OUTCOMES,
     READY_STATUSES,
@@ -32,16 +34,32 @@ from .models import (
 )
 from .provider import ClaudeProvider, ClaudeUnavailable, DemoProvider
 from .rules import (
+    MSG_STOPPED,
+    READY_TOTAL,
+    REVIEW_MONTHS,
     Checklist,
     DecisionForm,
     NewTool,
     ToolChangeError,
+    add_months,
     build_decision,
     build_new_tool,
+    can_ship,
     copy_request_fields,
+    extend_trial,
+    long_date,
+    mark_reviewed,
+    needs_decision,
+    parse_month,
     prefill_checklist,
+    ready_count,
+    ready_items,
+    record_security_check,
     retire_tool,
+    save_ready_answers,
     ship_tool,
+    team_stopped,
+    tool_flags,
     too_long_message,
     validate_decision,
     warnings_for,
@@ -51,6 +69,7 @@ from .store import DemoStore, LiveStore
 DEMO_READONLY = "Demo mode doesn't save anything. Run in live mode to send real decisions."
 TOOL_READONLY = "Demo mode doesn't save changes to tools."
 ASK_READONLY = "Demo mode doesn't save questions."
+SANDBOX_LINE = "Being tried is the sandbox: a small group uses it, with an end date, before it's shipped to everyone."
 
 
 # ---- Small helpers used by templates ----------------------------------------------
@@ -64,7 +83,16 @@ def fmt_date(value: Any) -> str:
             value = date.fromisoformat(value[:10])
         except ValueError:
             return value
-    return f"{value:%B} {value.day}, {value.year}"
+    if isinstance(value, datetime):
+        value = value.date()
+    return long_date(value)
+
+
+def parse_date(value: Any) -> Optional[date]:
+    try:
+        return date.fromisoformat(str(value or "").strip())
+    except ValueError:
+        return None
 
 
 def days_between(earlier: Any, now: datetime) -> int:
@@ -111,10 +139,16 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         TOOL_STATUSES=TOOL_STATUSES,
         REQUEST_STATUSES=REQUEST_STATUSES,
         SECURITY_CHECK=SECURITY_CHECK,
+        KEPT_USING=KEPT_USING,
+        JOURNEY_EVENTS=JOURNEY_EVENTS,
+        READY_TOTAL=READY_TOTAL,
+        MSG_STOPPED=MSG_STOPPED,
+        SANDBOX_LINE=SANDBOX_LINE,
         DEMO_READONLY=DEMO_READONLY,
         TOOL_READONLY=TOOL_READONLY,
         ASK_READONLY=ASK_READONLY,
         join_words=join_words,
+        tool_flags=lambda t: tool_flags(t, store.now().date()),
     )
 
     # ---- Who is viewing -------------------------------------------------------
@@ -142,6 +176,10 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
     def waiting_count() -> int:
         return sum(1 for r in store.list_requests() if r.status == "waiting")
 
+    def badge_count() -> int:
+        """Waiting requests plus tools that need a decision."""
+        return waiting_count() + len(needs_decision(store.list_tools(), store.now().date()))
+
     def render(req: HTTPRequest, name: str, current: str, status_code: int = 200, **ctx):
         base = dict(
             settings=settings,
@@ -150,6 +188,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             viewer=viewer(req),
             current=current,
             waiting_count=waiting_count(),
+            badge_count=badge_count(),
             path=req.url.path,
             now=store.now(),
         )
@@ -227,23 +266,45 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         f.update(task=ex.task, team=ex.team, how_often=ex.how_often, who_uses=ex.who_uses, info=list(ex.info))
         return f
 
+    def past_decisions() -> list[dict]:
+        """Decided requests for Asked before. Never includes who asked."""
+        requests = {r.id: r for r in store.list_requests()}
+        out = []
+        for d in sorted(store.list_decisions(), key=lambda d: d.decided_at, reverse=True):
+            r = requests.get(d.request_id)
+            if r is None or r.status != "decided":
+                continue
+            out.append({"id": r.id, "title": r.title, "task": r.task, "outcome": d.outcome,
+                        "reason": d.reason, "what_would_change": d.what_would_change})
+        return out[:40]
+
     def check_matches(task: str, info: list[str]) -> dict:
-        """Run the existing-tool check. Returns matches with their tools and the source."""
+        """Run the existing-tool check. Returns matches with their tools, the source and any related decision."""
         inventory = store.list_tools()
+        past = past_decisions()
         error = ""
+        related = None
         try:
-            outcome = provider.find_matches(task, info, inventory)
+            outcome = provider.find_matches(task, info, inventory, past)
             matches, source = clean_matches(outcome.matches, inventory), outcome.source
+            related = clean_related(outcome.related, past)
         except ClaudeUnavailable:
             matches, source = [], "claude"
             error = "Claude couldn't check the inventory just now. You can still submit, and a reviewer will check."
         tools = {t.id: t for t in inventory}
+        asked_before = None
+        if related:
+            d = next(p for p in past if p["id"] == related["request_id"])
+            # Only what Decided before shows. Never who asked.
+            asked_before = {"id": d["id"], "title": d["title"], "outcome": d["outcome"], "reason": d["reason"],
+                            "what_would_change": d["what_would_change"], "why": related["reason"]}
         return {
             "items": [{**m, "tool": tools[m["tool_id"]]} for m in matches],
             "raw": matches,
             "source": source,
             "error": error,
             "checked": bool(task.strip()),
+            "asked_before": asked_before,
         }
 
     def read_request_form(form) -> dict:
@@ -383,7 +444,8 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         return templates.TemplateResponse(
             req,
             "partials/match_panel.html",
-            {"panel": panel, "f": {"whats_missing": whats_missing}, "errors": {}, "mode": settings.mode},
+            {"panel": panel, "f": {"whats_missing": whats_missing}, "errors": {}, "mode": settings.mode,
+             "OUTCOMES": OUTCOMES},
         )
 
     # ---- My requests ------------------------------------------------------------------
@@ -494,12 +556,26 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         origin = store.get_request(t.from_request) if t.from_request else None
         decision = store.decision_for(t.from_request) if t.from_request else None
         tools = tool_map()
+        today = store.now().date()
+        latest_extension = (t.trial_ends + timedelta(days=60)) if t.trial_ends else None
         return {
             "t": t,
             "origin": origin,
             "origin_decision": decision,
             "tools": tools,
             "replacements": [x for x in tools.values() if x.id != t.id and x.status != "retired"],
+            "flags": tool_flags(t, today),
+            "ready": ready_items(t),
+            "ready_n": ready_count(t),
+            "can_ship": can_ship(t),
+            "stopped": team_stopped(t),
+            "rc": t.ready_check or {},
+            "journey": sorted(t.journey or [], key=lambda e: e.get("date") or ""),
+            "today": today,
+            "latest_extension": latest_extension,
+            "next_review_default": add_months(today, REVIEW_MONTHS).strftime("%Y-%m"),
+            "errors": {},
+            "posted": {},
         }
 
     @app.get("/tools/{tool_id}", response_class=HTMLResponse)
@@ -521,26 +597,67 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         if store.read_only:
             return render(req, "tool_page.html", "tools", status_code=400, **tool_page_context(t),
                           error=TOOL_READONLY, changed="")
+        before = t.model_copy(deep=True)
         try:
             label = change(t, form)
         except ToolChangeError as exc:
-            return render(req, "tool_page.html", "tools", status_code=400, **tool_page_context(t),
-                          error=str(exc), changed="")
+            ctx = tool_page_context(before)
+            ctx.update(errors=exc.errors, posted={k: str(v) for k, v in form.items()})
+            return render(req, "tool_page.html", "tools", status_code=400, **ctx, error=str(exc), changed="")
         store.save(t)
         return RedirectResponse(f"/tools/{t.id}?changed={label}", status_code=303)
+
+    def today() -> date:
+        return store.now().date()
+
+    @app.post("/tools/{tool_id}/check", response_class=HTMLResponse)
+    async def tool_check(req: HTTPRequest, tool_id: str):
+        def change(t, form):
+            save_ready_answers(t, str(form.get("kept_using") or ""), str(form.get("went_wrong") or ""),
+                               str(form.get("how_tested") or ""), str(form.get("test_link") or ""))
+            return "checked"
+        return await tool_change(req, tool_id, change)
+
+    @app.post("/tools/{tool_id}/security", response_class=HTMLResponse)
+    async def tool_security(req: HTTPRequest, tool_id: str):
+        def change(t, form):
+            record_security_check(t, form.get("security_done") == "yes", parse_date(form.get("security_date")),
+                                  str(form.get("security_note") or ""), today())
+            return "security"
+        return await tool_change(req, tool_id, change)
 
     @app.post("/tools/{tool_id}/ship", response_class=HTMLResponse)
     async def tool_ship(req: HTTPRequest, tool_id: str):
         def change(t, form):
-            ship_tool(t, str(form.get("to_status") or ""), str(form.get("limits") or ""))
+            ship_tool(t, str(form.get("to_status") or ""), str(form.get("limits") or ""), today())
             return "shipped"
+        return await tool_change(req, tool_id, change)
+
+    @app.post("/tools/{tool_id}/extend", response_class=HTMLResponse)
+    async def tool_extend(req: HTTPRequest, tool_id: str):
+        def change(t, form):
+            extend_trial(t, parse_date(form.get("new_end")), today())
+            return "extended"
         return await tool_change(req, tool_id, change)
 
     @app.post("/tools/{tool_id}/retire", response_class=HTMLResponse)
     async def tool_retire(req: HTTPRequest, tool_id: str):
         def change(t, form):
-            retire_tool(t, str(form.get("replaced_by") or ""), store.list_tools())
+            retire_tool(t, str(form.get("retire_reason") or ""), str(form.get("replaced_by") or ""),
+                        store.list_tools(), today())
             return "retired"
+        return await tool_change(req, tool_id, change)
+
+    @app.post("/tools/{tool_id}/reviewed", response_class=HTMLResponse)
+    async def tool_reviewed(req: HTTPRequest, tool_id: str):
+        def change(t, form):
+            raw = str(form.get("next_review_month") or "").strip()
+            month = parse_month(raw)
+            if raw and month is None:
+                raise ToolChangeError("Pick the month of the next review.", field="next_review_month")
+            mark_reviewed(t, str(form.get("still_in_use") or ""), str(form.get("review_change") or ""),
+                          month, today())
+            return "reviewed"
         return await tool_change(req, tool_id, change)
 
     @app.get("/tools/{tool_id}/edit", response_class=HTMLResponse)
@@ -576,6 +693,12 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         if not t.allowed_info:
             errors["allowed_info"] = "Choose what information the tool is okay to use."
         t.next_review = str(form.get("next_review") or "").strip() or None
+        if t.next_review:
+            month = parse_month(t.next_review)
+            if month is None:
+                errors["next_review"] = "Write the month and year, for example March 2027."
+            else:
+                t.next_review = f"{month:%B} {month.year}"
         t.link = str(form.get("link") or "").strip() or None
         if t.link and not t.link.startswith(("https://", "http://")):
             errors["link"] = "Links start with https://"
@@ -609,7 +732,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
                 continue
             # Only what is safe to show everyone. Never the requester's name.
             items.append(
-                {"title": r.title, "outcome": d.outcome, "reason": d.reason,
+                {"id": r.id, "title": r.title, "outcome": d.outcome, "reason": d.reason,
                  "what_would_change": d.what_would_change, "decided_at": d.decided_at}
             )
         return render(req, "decided.html", "decided", items=items, q=q, outcome=outcome)
@@ -717,6 +840,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             draft_note="",
             draft_error="",
             flash="",
+            needs=needs_decision(list(tools.values()), now.date()),
         )
         if r is not None:
             form = form or default_form(r, now)
@@ -831,7 +955,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         decision = build_decision(form, r, reviewer, now)
         to_save: list[Any] = [decision]
         if form.outcome in ("approve", "approve_with_limits"):
-            to_save.append(build_new_tool(form, r, {t.id for t in inventory}))
+            to_save.append(build_new_tool(form, r, {t.id for t in inventory}, now.date()))
         timeline = list(r.timeline)
         if not any(e["label"] == "Reviewer picked it up" for e in timeline):
             timeline.append({"label": "Reviewer picked it up", "date": today})

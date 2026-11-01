@@ -1,5 +1,5 @@
 {%- if t.status == "being_tried" -%}
-Being tried by {{ t.teams[0] if t.teams else t.owner_team }} until {{ t.trial_ends|date }}. Owner {{ t.owner_name }}, {{ t.owner_team }}.
+Being tried by {{ t.teams[0] if t.teams else t.owner_team }}{% if "trial_ended" in tool_flags(t) %}. Trial ended {{ t.trial_ends|date }}{% else %} until {{ t.trial_ends|date }}{% endif %}. Owner {{ t.owner_name }}, {{ t.owner_team }}.
 {%- elif t.status == "retired" -%}
 Retired{% if t.replaced_by and tools.get(t.replaced_by) %}. Replaced by {{ tools[t.replaced_by].name }}{% endif %}. Owner was {{ t.owner_name }}.
 {%- else -%}

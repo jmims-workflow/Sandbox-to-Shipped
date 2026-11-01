@@ -1,4 +1,6 @@
 # Northstar Systems tool inventory (fictional demo data).
+# Every date is an offset from today ("3 days ago", "in 2 weeks", "last month"),
+# so the demo always looks current. next_review takes a month offset.
 tools:
   - id: call-recap-writer
     name: Call Recap Writer
@@ -8,8 +10,14 @@ tools:
     teams: [Sales, Partnerships]
     status: approved
     allowed_info: [customer_contact, deal_pricing]
-    next_review: January 2027
+    security_check: done
+    next_review: in 3 months
     link: https://tools.northstar.example/call-recap-writer
+    journey:
+      - {kind: security_done, date: 335 days ago, note: "Checked how it stores customer contact details."}
+      - {kind: being_tried, date: 330 days ago, note: "By Sales, for 60 days."}
+      - {kind: shipped, date: 270 days ago, note: "Approved."}
+      - {kind: reviewed, date: 90 days ago, note: "Still in use: Yes."}
 
   - id: proposal-drafter
     name: Proposal Drafter
@@ -20,9 +28,14 @@ tools:
     status: approved_with_limits
     allowed_info: [customer_contact, deal_pricing]
     limits: Prices come from the price sheet, never typed in by hand.
-    next_review: March 2027
+    next_review: last month
     link: https://tools.northstar.example/proposal-drafter
     from_request: r-1043
+    journey:
+      - {kind: requested, date: 147 days ago}
+      - {kind: security_done, date: 140 days ago, note: "Checked that every price comes from the price sheet."}
+      - {kind: being_tried, date: 137 days ago, note: "By Sales, for six weeks."}
+      - {kind: shipped, date: 95 days ago, note: "Approved with limits. Limit: Prices come from the price sheet, never typed in by hand."}
 
   - id: webinar-invite-writer
     name: Webinar Invite Writer
@@ -32,9 +45,21 @@ tools:
     teams: [Marketing]
     status: approved
     allowed_info: [public_only]
-    next_review: February 2027
+    next_review: in 4 months
     link: https://tools.northstar.example/webinar-invite-writer
     from_request: r-1041
+    ready_check:
+      kept_using: regularly
+      went_wrong: >-
+        Two invites went out with the wrong time zone in the first week. Fixed
+        by adding the time zone to the event brief.
+      how_tested: >-
+        Ran it on the last eight webinar briefs and compared the invites with
+        what we sent by hand. All eight were usable after small edits.
+    journey:
+      - {kind: requested, date: 97 days ago}
+      - {kind: being_tried, date: 90 days ago, note: "By Field Marketing, for six weeks."}
+      - {kind: shipped, date: 48 days ago, note: "Approved."}
 
   - id: support-handoff-summary
     name: Support Handoff Summary
@@ -44,8 +69,14 @@ tools:
     teams: [Support]
     status: approved
     allowed_info: [customer_contact, internal_notes]
-    next_review: April 2027
+    security_check: done
+    next_review: in 5 months
     link: https://tools.northstar.example/support-handoff-summary
+    journey:
+      - {kind: security_done, date: 245 days ago, note: "Checked how it handles customer contact details in threads."}
+      - {kind: being_tried, date: 240 days ago, note: "By Support, for 60 days."}
+      - {kind: shipped, date: 180 days ago, note: "Approved."}
+      - {kind: reviewed, date: 30 days ago, note: "Still in use: Yes. To change: add the Connect version to every summary."}
 
   - id: insight-dashboard-explainer
     name: Insight Dashboard Explainer
@@ -55,8 +86,12 @@ tools:
     teams: [Customer success, Sales]
     status: approved
     allowed_info: [internal_notes, public_only]
-    next_review: December 2026
+    next_review: in 1 month
     link: https://tools.northstar.example/insight-dashboard-explainer
+    journey:
+      - {kind: being_tried, date: 230 days ago, note: "By Customer success, for 60 days."}
+      - {kind: extended, date: 172 days ago, note: "Extended by two weeks so Sales could try it too."}
+      - {kind: shipped, date: 155 days ago, note: "Approved."}
 
   - id: case-study-builder
     name: Case Study Builder
@@ -67,8 +102,13 @@ tools:
     status: approved_with_limits
     allowed_info: [customer_contact, internal_notes]
     limits: Customer quotes need the customer's written OK before publishing.
-    next_review: May 2027
+    security_check: done
+    next_review: in 5 months
     link: https://tools.northstar.example/case-study-builder
+    journey:
+      - {kind: security_done, date: 115 days ago, note: "Checked how interview notes with customer names are stored."}
+      - {kind: being_tried, date: 110 days ago, note: "By Marketing, for 60 days."}
+      - {kind: shipped, date: 30 days ago, note: "Approved with limits. Limit: Customer quotes need the customer's written OK before publishing."}
 
   - id: translation-helper
     name: Translation Helper
@@ -78,8 +118,11 @@ tools:
     teams: [International Marketing]
     status: being_tried
     allowed_info: [public_only]
-    trial_ends: 2026-12-15
+    security_check: not_needed
+    trial_ends: in 2 weeks
     link: https://tools.northstar.example/translation-helper
+    journey:
+      - {kind: being_tried, date: 46 days ago, note: "By International Marketing, for 60 days."}
 
   - id: partner-outreach-drafts
     name: Partner Outreach Drafts
@@ -89,8 +132,16 @@ tools:
     teams: [Partnerships]
     status: being_tried
     allowed_info: [internal_notes, public_only]
-    trial_ends: 2027-01-10
+    security_check: not_needed
+    trial_ends: 3 days ago
     link: https://tools.northstar.example/partner-outreach-drafts
+    ready_check:
+      kept_using: regularly
+      went_wrong: >-
+        Two drafts named the wrong partner tier. The reps caught both before
+        sending.
+    journey:
+      - {kind: being_tried, date: 63 days ago, note: "By Partnerships, for 60 days."}
 
   - id: subject-line-tester
     name: Subject Line Tester
@@ -101,3 +152,7 @@ tools:
     status: retired
     allowed_info: [public_only]
     replaced_by: webinar-invite-writer
+    journey:
+      - {kind: being_tried, date: 400 days ago, note: "By Growth Marketing, for 60 days."}
+      - {kind: shipped, date: 340 days ago, note: "Approved."}
+      - {kind: retired, date: 40 days ago, note: "Webinar Invite Writer now suggests subject lines with each invite. Replaced by Webinar Invite Writer."}

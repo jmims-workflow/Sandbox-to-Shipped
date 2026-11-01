@@ -17,6 +17,9 @@
 {%- elif name == "clock" -%}<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/>
 {%- elif name == "back" -%}<path d="M19 12H5M11 6l-6 6 6 6"/>
 {%- elif name == "external" -%}<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>
+{%- elif name == "hourglass" -%}<path d="M6.5 3.5h11M6.5 20.5h11"/><path d="M7.5 3.5c0 4.5 4.5 5.5 4.5 8.5s-4.5 4-4.5 8.5M16.5 3.5c0 4.5-4.5 5.5-4.5 8.5s4.5 4 4.5 8.5"/>
+{%- elif name == "calendar" -%}<rect x="3.5" y="5" width="17" height="15.5" rx="1.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>
+{%- elif name == "circle" -%}<circle cx="12" cy="12" r="8"/>
 {%- elif name == "spark" -%}<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/>
 {%- endif -%}
 </svg>
@@ -33,6 +36,8 @@
   "retired": ("retired", "archive", "Retired"),
   "waiting": ("waiting", "clock", "Waiting"),
   "in_review": ("waiting", "clock", "In review"),
+  "trial_ended": ("trial-ended", "hourglass", "Trial ended"),
+  "review_due": ("review-due", "calendar", "Review due"),
 } %}
 
 {% macro label(kind) -%}
@@ -62,4 +67,30 @@
 
 {% macro claude_note() -%}
 <p class="claude-note">{{ icon("spark", 16) }}<span>From Claude. A person decides every request.</span></p>
+{%- endmacro %}
+
+{# Trial ended shows to everyone; Review due only to reviewers. #}
+{% macro flag_labels(flags, viewer) -%}
+{%- for f in flags %}{% if f == "trial_ended" or viewer == "reviewer" %}{{ label(f) }}{% endif %}{% endfor -%}
+{%- endmacro %}
+
+{% macro security_text(t, rc) -%}
+{%- if t.security_check == "done" -%}
+Done{% if rc.security_date %} {{ rc.security_date|date }}{% endif %}.{% if rc.security_note %} {{ rc.security_note }}{% endif %}
+{%- elif t.security_check == "not_needed" -%}
+Not needed. It's okay to use with {% for i in t.allowed_info %}{{ INFO_KINDS[i]|lower }}{% if not loop.last %}, {% endif %}{% endfor %}.
+{%- else -%}
+Needed, and not recorded as done yet.
+{%- endif -%}
+{%- endmacro %}
+
+{% macro ready_answers(t, rc) -%}
+<dl class="facts">
+  <div><dt>Owner agreed to own it</dt><dd>{% if t.owner_agreed %}Yes. {{ t.owner_name }}, {{ t.owner_team }}.{% else %}Not recorded.{% endif %}</dd></div>
+  <div><dt>Security check</dt><dd>{{ security_text(t, rc) }}</dd></div>
+  <div><dt>Did the team keep using it?</dt><dd>{{ KEPT_USING.get(rc.kept_using, "Not answered") }}</dd></div>
+  <div><dt>Anything go wrong?</dt><dd>{{ rc.went_wrong or "Not answered" }}</dd></div>
+  <div><dt>How it was tested</dt><dd>{{ rc.how_tested or "Not answered" }}</dd></div>
+  {% if rc.test_link %}<div><dt>Test results</dt><dd><a href="{{ rc.test_link }}" rel="noopener">Open the test results {{ icon("external", 16) }}</a></dd></div>{% endif %}
+</dl>
 {%- endmacro %}

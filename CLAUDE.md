@@ -35,7 +35,8 @@ sts check-data
 - `sts/provider.py`: every Claude call. Keep all Claude calls here.
 - `sts/rules.py`: checklist and decision rules. `sts/matching.py`: match validation and the demo word match.
 - `sts/store.py`: DemoStore (read only) and LiveStore (SQLite). `sts/web.py`: routes. `templates/`, `static/`.
-- `demo/`: `tools.yaml`, `requests.yaml`, `recorded/<request-id>.json`. Demo "today" is `as_of` in `requests.yaml`.
+- `demo/`: `tools.yaml`, `requests.yaml`, `recorded/<request-id>.json`. Every demo date is stored as an offset from today ("today", "3 days ago", "in 2 weeks", "last month"), never a fixed date, so the demo always looks current. Demo "today" is the real date. `tests/test_demo_data.py` checks this.
+- `sts/store.py` `LiveStore.upgrade()`: adds new columns to an older live database on startup and builds journeys for existing tools. Add any new column there too.
 
 ## Decision rules (keep tests in tests/test_rules.py in step)
 
@@ -47,6 +48,23 @@ sts check-data
 - "Send without a person checking" = Yes shows a warning, never a block: "Northstar doesn't approve tools that send to customers on their own."
 - Ship it: being_tried to approved or approved_with_limits. Retire: any status, replacement optional. Reviewers only.
 - "Start a new request from this one" copies task, team, how often, who and information, and sets copied_from.
+
+## Ready to ship rules (keep tests in tests/test_ready_to_ship.py and tests/test_sandbox_web.py in step)
+
+- A being tried tool's page shows reviewers "Ready to ship?" with four items, each done or not done, and a count such as "2 of 4 ready":
+  - Owner agreed to own it: from the owner agreement recorded at approval.
+  - Security check done or not needed: from the decision that created the tool. If needed and not done, the reviewer records it on the tool (checkbox, date, one-line note).
+  - The team kept using it: "Did the team keep using it?" (Yes, regularly / Some of the time / No) plus "Anything go wrong?" (required; "Nothing" is fine). Done only for Yes, regularly or Some of the time.
+  - How it was tested: required short answer, optional test results link (http or https only).
+- Ship it stays disabled until all four are done, enforced on the server in `ship_tool()`.
+- Team stopped using it: no approval options. "A tool the team stopped using isn't ready to ship. Extend the trial or retire it."
+- Ship it offers Approved or Approved with limits (limits required).
+- Extend and Retire are always available. Extend once only, to no more than 60 days after the current end date. Retire needs a one-line reason; replacement optional.
+- Trial ended: being tried and trial end date before today (shown to everyone). Review due: approved and next review month before this month (reviewers only). Both appear under "Needs a decision" on the Review queue and count in the sidebar badge with waiting requests.
+- Mark reviewed asks "Still in use?" and "Anything to change?" and sets the next review six months later by default.
+- Every change adds a journey event: requested, being_tried, security_done, extended, shipped, reviewed, retired.
+- Asked before: the match call may return one past decision id. Send past decisions without requester names; drop any id not in the list sent.
+- Demo mode disables Ship it, Extend, Retire, Mark reviewed, recording a security check and saving answers, with a one-line reason.
 
 ## Plain language
 

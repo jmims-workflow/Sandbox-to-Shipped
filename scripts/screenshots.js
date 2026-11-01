@@ -13,6 +13,8 @@ const shots = [
   ['tool-inventory', '/tools', 'requester', 1280, false],
   ['review-queue', '/review', 'reviewer', 1280, false],
   ['request-page-phone', '/requests/r-1044', 'requester', 390, true],
+  ['tool-ready-to-ship', '/tools/translation-helper', 'reviewer', 1280, true],
+  ['tool-journey', '/tools/webinar-invite-writer', 'requester', 1280, true],
 ];
 
 (async () => {

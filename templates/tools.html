@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import icon, label %}
+{% from "macros.html" import icon, label, flag_labels %}
 {% block title %}Tool inventory | {% endblock %}
 {% block content %}
 <h1>Tool inventory</h1>
@@ -19,7 +19,7 @@
   </div>
   <div class="field">
     <label for="status">Status</label>
-    <select id="status" name="status">
+    <select id="status" name="status" aria-describedby="sandbox-hint">
       {% for key, text in status_filters.items() %}<option value="{{ key }}"{% if filters.status == key %} selected{% endif %}>{{ text }}</option>{% endfor %}
     </select>
   </div>
@@ -31,6 +31,7 @@
     </select>
   </div>
   <button type="submit" class="btn">Show tools</button>
+  <p class="hint filters-note" id="sandbox-hint">{{ icon("flask", 16) }}<span>{{ SANDBOX_LINE }}</span></p>
 </form>
 
 <p class="count-line" role="status">Showing {{ tools|length }} of {{ total }} tools. {{ counts.ready }} ready to use, {{ counts.being_tried }} being tried{% if counts.retired %}, {{ counts.retired }} retired{% endif %}.</p>
@@ -40,7 +41,7 @@
   {% for t in tools %}
   <li class="card tool-card">
     <h2><a href="/tools/{{ t.id }}">{{ t.name }}</a></h2>
-    <div>{{ label(t.status) }}</div>
+    <div class="label-row">{{ label(t.status) }}{{ flag_labels(tool_flags(t), viewer) }}</div>
     <p>{{ t.purpose }}</p>
     {% if t.status == "approved_with_limits" %}
     <p><strong>Limit:</strong> {{ t.limits }}</p>

@@ -134,11 +134,16 @@ def test_decision_tracks_claude_draft_and_edits():
     assert d.reason_drafted_by_claude and not d.reason_edited
 
 
+READY_ANSWERS = {"kept_using": "regularly", "went_wrong": "Nothing", "how_tested": "Tried it on ten pages."}
+
+
 def test_ship_it():
-    tool = next(t for t in TOOLS if t.id == "translation-helper").model_copy()
+    tool = next(t for t in TOOLS if t.id == "translation-helper").model_copy(deep=True)
+    tool.ready_check = dict(READY_ANSWERS)
     ship_tool(tool, "approved")
     assert tool.status == "approved" and tool.trial_ends is None
-    tool = next(t for t in TOOLS if t.id == "partner-outreach-drafts").model_copy()
+    tool = next(t for t in TOOLS if t.id == "partner-outreach-drafts").model_copy(deep=True)
+    tool.ready_check = dict(READY_ANSWERS)
     with pytest.raises(ToolChangeError):
         ship_tool(tool, "approved_with_limits", "")
     ship_tool(tool, "approved_with_limits", "Internal notes only.")
@@ -152,14 +157,14 @@ def test_ship_it_only_from_being_tried():
 
 
 def test_retire_with_and_without_replacement():
-    tool = next(t for t in TOOLS if t.id == "proposal-drafter").model_copy()
-    retire_tool(tool)
+    tool = next(t for t in TOOLS if t.id == "proposal-drafter").model_copy(deep=True)
+    retire_tool(tool, "Nobody uses it any more.")
     assert tool.status == "retired" and tool.replaced_by is None
-    tool = next(t for t in TOOLS if t.id == "translation-helper").model_copy()
-    retire_tool(tool, "call-recap-writer", TOOLS)
-    assert tool.status == "retired" and tool.replaced_by == "call-recap-writer"
+    tool = next(t for t in TOOLS if t.id == "translation-helper").model_copy(deep=True)
     with pytest.raises(ToolChangeError):
-        retire_tool(tool, "not-a-tool", TOOLS)
+        retire_tool(tool, "Moved to a new tool.", "not-a-tool", TOOLS)
+    retire_tool(tool, "Moved to a new tool.", "call-recap-writer", TOOLS)
+    assert tool.status == "retired" and tool.replaced_by == "call-recap-writer"
 
 
 def test_start_new_request_copies_the_right_fields():
