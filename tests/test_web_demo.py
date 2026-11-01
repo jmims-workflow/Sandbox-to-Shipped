@@ -1,18 +1,25 @@
 import re
 import socket
+from datetime import date, timedelta
 
 import pytest
 
 from sts.config import Settings
+
+from sts.rules import long_date
 
 from .conftest import DEMO_DIR, as_requester, as_reviewer, visible_text
 
 BANNED = ["intake", "triage", "ticket", "workflow", "governance", "PII", "LLM", "model", "prompt", "deny", "denied"]
 REQUESTER_PAGES = ["/", "/requests", "/requests/r-1044", "/requests/r-1048", "/requests/r-1045", "/requests/r-1042",
                    "/requests/r-1041", "/requests/r-1043", "/tools", "/tools?status=all", "/tools/call-recap-writer",
-                   "/tools/subject-line-tester", "/decided", "/how-it-works", "/?from=r-1044"]
+                   "/tools/subject-line-tester", "/decided", "/how-it-works", "/?from=r-1044",
+                   "/tools/webinar-invite-writer", "/tools/partner-outreach-drafts", "/tools/translation-helper",
+                   "/tools/proposal-drafter"]
 REVIEWER_PAGES = ["/review", "/review/r-1046", "/review/r-1047", "/review/r-1044", "/review/r-1045",
-                  "/tools/translation-helper", "/tools/proposal-drafter/edit", "/decided"]
+                  "/tools/translation-helper", "/tools/proposal-drafter/edit", "/decided",
+                  "/tools/partner-outreach-drafts", "/tools/proposal-drafter", "/tools/webinar-invite-writer",
+                  "/tools/call-recap-writer", "/tools/subject-line-tester", "/tools", "/how-it-works"]
 
 
 def test_health(demo_client):
@@ -53,7 +60,8 @@ def test_not_approved_request_shows_reason_and_what_would_change(demo_client):
     assert "What would change the answer" in html
     assert "A version that drafts the reply for a rep to check and send" in html
     assert "Request a different version" in html
-    assert "Decided October 27, 2026 by the AI review group" in html
+    # Demo dates are offsets from today: r-1044 was decided 6 days ago.
+    assert f"Decided {long_date(date.today() - timedelta(days=6))} by the AI review group" in html
 
 
 def test_request_a_different_version_copies_answers(demo_client):
@@ -129,7 +137,8 @@ def test_inventory_filters_and_count(demo_client):
     html = demo_client.get("/tools?status=all").text
     assert "Subject Line Tester" in html
     html = demo_client.get("/tools?status=being_tried").text
-    assert "Being tried by International Marketing until December 15, 2026" in html
+    ends = long_date(date.today() + timedelta(days=14))
+    assert f"Being tried by International Marketing until {ends}" in html
     html = demo_client.get("/tools?info=public_only&team=Marketing").text
     assert "Webinar Invite Writer" in html and "Call Recap Writer" not in html
 
@@ -191,6 +200,8 @@ def test_no_banned_words_in_review_states(demo_client):
         demo_client.post("/review/r-1048", data={"action": "send", "outcome": "approve"}),
         demo_client.post("/", data={"task": "Write invite and reminder emails for a webinar", "team": "Marketing",
                                     "how_often": "few_month", "who_uses": "my_team", "info": "public_only"}),
+        demo_client.post("/", data={"action": "check", "task": "auto-reply to demo requests"}),
+        demo_client.post("/tools/translation-helper/ship", data={"to_status": "approved"}),
     ]
     for r in pages:
         text = visible_text(r.text)

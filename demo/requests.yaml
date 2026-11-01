@@ -1,6 +1,6 @@
 # Requests and decisions for the fictional company Northstar Systems.
-# Demo mode treats as_of as "today" so dates read the same on every visit.
-as_of: 2026-11-02
+# Every date is an offset from today ("today", "3 days ago", "in 2 weeks"),
+# so the demo always looks current.
 demo_requester: Priya Raman
 demo_reviewer: Jordan Ellis
 
@@ -15,10 +15,10 @@ requests:
     who_uses: my_team
     info: [customer_contact, deal_pricing]
     requester_name: Priya Raman
-    submitted_at: 2026-11-02
+    submitted_at: today
     status: waiting
     timeline:
-      - {label: Submitted, date: 2026-11-02}
+      - {label: Submitted, date: today}
 
   - id: r-1047
     title: Social posts from case studies
@@ -31,13 +31,13 @@ requests:
     info: [customer_contact, public_only]
     extra: We publish about two case studies a month, mostly for Insight customers.
     requester_name: Owen Pratt
-    submitted_at: 2026-10-30
+    submitted_at: 3 days ago
     status: waiting
     whats_missing: >-
       Case Study Builder writes the case study itself. I need the social posts
       that come after it's published.
     timeline:
-      - {label: Submitted, date: 2026-10-30}
+      - {label: Submitted, date: 3 days ago}
 
   - id: r-1046
     title: Renewal risk notes for CSMs
@@ -51,10 +51,10 @@ requests:
     info: [customer_contact, internal_notes]
     extra: Most of our renewals are Connect accounts with 50 or more seats.
     requester_name: Nora Lindqvist
-    submitted_at: 2026-10-29
+    submitted_at: 4 days ago
     status: waiting
     timeline:
-      - {label: Submitted, date: 2026-10-29}
+      - {label: Submitted, date: 4 days ago}
 
   - id: r-1045
     title: Partner one-pager drafts
@@ -66,11 +66,11 @@ requests:
     who_uses: several_teams
     info: [internal_notes, public_only]
     requester_name: Priya Raman
-    submitted_at: 2026-10-27
+    submitted_at: 6 days ago
     status: in_review
     timeline:
-      - {label: Submitted, date: 2026-10-27}
-      - {label: Reviewer picked it up, date: 2026-10-31}
+      - {label: Submitted, date: 6 days ago}
+      - {label: Reviewer picked it up, date: 2 days ago}
 
   - id: r-1044
     title: Reply to inbound demo requests automatically
@@ -83,18 +83,18 @@ requests:
     info: [customer_contact]
     extra: Right now replies can take a day, and we lose people in that gap.
     requester_name: Priya Raman
-    submitted_at: 2026-10-20
+    submitted_at: 13 days ago
     status: decided
     questions:
       - text: >-
           Could the version that drafts the reply also suggest meeting times
           from the rep's calendar? That's the slowest part for us.
-        date: 2026-10-29
+        date: 4 days ago
     timeline:
-      - {label: Submitted, date: 2026-10-20}
-      - {label: Reviewer picked it up, date: 2026-10-21}
-      - {label: Security check done, date: 2026-10-24}
-      - {label: Decided, date: 2026-10-27}
+      - {label: Submitted, date: 13 days ago}
+      - {label: Reviewer picked it up, date: 12 days ago}
+      - {label: Security check done, date: 9 days ago}
+      - {label: Decided, date: 6 days ago}
     decision:
       outcome: not_approved
       checklist:
@@ -113,7 +113,7 @@ requests:
       reason_drafted_by_claude: true
       reason_edited: true
       decided_by: the AI review group
-      decided_at: 2026-10-27
+      decided_at: 6 days ago
 
   - id: r-1042
     title: Translate help center articles
@@ -125,12 +125,12 @@ requests:
     who_uses: my_team
     info: [public_only]
     requester_name: Mei Tanaka
-    submitted_at: 2026-10-02
+    submitted_at: 31 days ago
     status: decided
     timeline:
-      - {label: Submitted, date: 2026-10-02}
-      - {label: Reviewer picked it up, date: 2026-10-06}
-      - {label: Decided, date: 2026-10-09}
+      - {label: Submitted, date: 31 days ago}
+      - {label: Reviewer picked it up, date: 27 days ago}
+      - {label: Decided, date: 24 days ago}
     decision:
       outcome: use_existing
       existing_tool_id: translation-helper
@@ -149,7 +149,7 @@ requests:
       reason_drafted_by_claude: true
       reason_edited: false
       decided_by: Jordan Ellis
-      decided_at: 2026-10-09
+      decided_at: 24 days ago
 
   - id: r-1041
     title: Webinar recap emails
@@ -161,12 +161,12 @@ requests:
     who_uses: my_team
     info: [public_only]
     requester_name: Priya Raman
-    submitted_at: 2026-07-28
+    submitted_at: 97 days ago
     status: decided
     timeline:
-      - {label: Submitted, date: 2026-07-28}
-      - {label: Reviewer picked it up, date: 2026-07-30}
-      - {label: Decided, date: 2026-08-04}
+      - {label: Submitted, date: 97 days ago}
+      - {label: Reviewer picked it up, date: 95 days ago}
+      - {label: Decided, date: 90 days ago}
     decision:
       outcome: approve
       checklist:
@@ -184,7 +184,7 @@ requests:
       reason_drafted_by_claude: true
       reason_edited: true
       decided_by: Jordan Ellis
-      decided_at: 2026-08-04
+      decided_at: 90 days ago
 
   - id: r-1043
     title: Fill in proposal pricing from deal notes
@@ -196,13 +196,13 @@ requests:
     who_uses: several_teams
     info: [customer_contact, deal_pricing]
     requester_name: Carlos Mendes
-    submitted_at: 2026-06-08
+    submitted_at: 147 days ago
     status: decided
     timeline:
-      - {label: Submitted, date: 2026-06-08}
-      - {label: Reviewer picked it up, date: 2026-06-10}
-      - {label: Security check done, date: 2026-06-15}
-      - {label: Decided, date: 2026-06-18}
+      - {label: Submitted, date: 147 days ago}
+      - {label: Reviewer picked it up, date: 145 days ago}
+      - {label: Security check done, date: 140 days ago}
+      - {label: Decided, date: 137 days ago}
     decision:
       outcome: approve_with_limits
       limits: Prices come from the price sheet, never typed in by hand.
@@ -222,4 +222,4 @@ requests:
       reason_drafted_by_claude: true
       reason_edited: true
       decided_by: Jordan Ellis
-      decided_at: 2026-06-18
+      decided_at: 137 days ago

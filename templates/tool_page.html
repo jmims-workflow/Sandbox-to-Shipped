@@ -1,14 +1,30 @@
 {% extends "base.html" %}
-{% from "macros.html" import icon, label %}
+{% from "macros.html" import icon, label, flag_labels, field_error, described, security_text, ready_answers %}
 {% block title %}{{ t.name }} | {% endblock %}
 {% block content %}
+{% set demo = mode == "demo" %}
+{% set has_answers = rc.kept_using or rc.how_tested %}
 <a class="back-link" href="/tools">{{ icon("back", 18) }}Tool inventory</a>
-<div class="list-item" style="margin-bottom:8px"><h1 style="margin:0">{{ t.name }}</h1>{{ label(t.status) }}</div>
+<div class="list-item" style="margin-bottom:8px"><h1 style="margin:0">{{ t.name }}</h1><span class="label-row">{{ label(t.status) }}{{ flag_labels(flags, viewer) }}</span></div>
 <p class="page-intro">{{ t.purpose }}</p>
+
+{% if t.status == "being_tried" %}
+<div class="sandbox-note">
+  {{ icon("flask", 20) }}
+  <div>
+    <p>{{ SANDBOX_LINE }}</p>
+    <p><strong>Trial ends {{ t.trial_ends|date }}</strong>{% if "trial_ended" in flags %}. That date has passed, so a reviewer needs to ship it, extend the trial or retire it.{% endif %}</p>
+  </div>
+</div>
+{% endif %}
 
 {% if changed == "shipped" %}<p class="notice notice-ok" role="status">Shipped. {{ t.name }} is now {{ TOOL_STATUSES[t.status]|lower }}.</p>{% endif %}
 {% if changed == "retired" %}<p class="notice notice-ok" role="status">{{ t.name }} is retired.</p>{% endif %}
 {% if changed == "edited" %}<p class="notice notice-ok" role="status">Changes saved.</p>{% endif %}
+{% if changed == "checked" %}<p class="notice notice-ok" role="status">Answers saved.</p>{% endif %}
+{% if changed == "security" %}<p class="notice notice-ok" role="status">Security check recorded.</p>{% endif %}
+{% if changed == "extended" %}<p class="notice notice-ok" role="status">Trial extended to {{ t.trial_ends|date }}.</p>{% endif %}
+{% if changed == "reviewed" %}<p class="notice notice-ok" role="status">Marked as reviewed. Next review {{ t.next_review }}.</p>{% endif %}
 {% if error %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endif %}
 
 <div class="two-col">
@@ -27,36 +43,184 @@
       {% if t.link and t.status != "retired" %}<p style="margin:16px 0 0"><a class="btn" href="{{ t.link }}" rel="noopener">Open the tool {{ icon("external", 16) }}</a></p>{% endif %}
     </section>
 
-    {% if viewer == "reviewer" %}
-    <section class="card" aria-labelledby="manage-h">
-      <h2 id="manage-h">Manage this tool</h2>
-      {% if mode == "demo" %}<p class="muted small">{{ TOOL_READONLY }}</p>{% endif %}
-      {% if t.status == "being_tried" %}
-      <form method="post" action="/tools/{{ t.id }}/ship" class="subform">
-        <fieldset class="field" style="margin-bottom:12px">
-          <legend>Ship it: move from being tried to</legend>
-          <div class="choices">
-            <label class="choice"><input type="radio" name="to_status" value="approved" checked> Approved</label>
-            <label class="choice"><input type="radio" name="to_status" value="approved_with_limits"> Approved with limits</label>
+    {% if viewer == "reviewer" and t.status == "being_tried" %}
+    <section class="card" id="ready" aria-labelledby="ready-h">
+      <div class="list-item" style="margin-bottom:12px">
+        <h2 id="ready-h">Ready to ship?</h2>
+        <span class="ready-count{% if ready_n == READY_TOTAL %} is-ready{% endif %}">{{ ready_n }} of {{ READY_TOTAL }} ready</span>
+      </div>
+      {% if demo %}<p class="muted small" id="ready-demo">{{ TOOL_READONLY }}</p>{% endif %}
+      <ul class="ready-list">
+        {% for item in ready %}
+        <li class="ready-item {{ 'is-done' if item.done else 'is-open' }}">
+          <span class="ready-status">{{ icon("check" if item.done else "circle", 18) }}<span>{{ "Done" if item.done else "Not done" }}</span></span>
+          <div class="ready-body">
+            <strong>{{ item.label }}</strong>
+            <p class="small">
+            {%- if item.key == "owner" -%}
+              {% if t.owner_agreed %}{{ t.owner_name }} agreed when the tool was approved.{% else %}Not recorded. Edit the tool to record the owner's agreement.{% endif %}
+            {%- elif item.key == "security" -%}
+              {{ security_text(t, rc) }}
+            {%- elif item.key == "kept_using" -%}
+              {% if rc.kept_using %}{{ KEPT_USING[rc.kept_using] }}.{% if rc.went_wrong %} Anything go wrong: {{ rc.went_wrong }}{% endif %}{% else %}Not answered yet.{% endif %}
+            {%- else -%}
+              {% if rc.how_tested %}{{ rc.how_tested }}{% else %}Not answered yet.{% endif %}
+            {%- endif -%}
+            </p>
           </div>
+        </li>
+        {% endfor %}
+      </ul>
+
+      {% if t.security_check == "needed" %}
+      <form method="post" action="/tools/{{ t.id }}/security" class="subform" novalidate>
+        <fieldset class="plain">
+          <legend>Record the security check</legend>
+          <div class="field">
+            <label class="choice" style="padding-left:0"><input type="checkbox" id="security_done" name="security_done" value="yes"{% if posted.security_done == "yes" %} checked{% endif %}{{ described(errors, "security_done") }}> Security check done</label>
+            {{ field_error(errors, "security_done") }}
+          </div>
+          <div class="grid-2">
+            <div class="field"><label for="security_date">Date of the check</label><input type="date" id="security_date" name="security_date" max="{{ today.isoformat() }}" value="{{ posted.security_date or '' }}"{{ described(errors, "security_date") }}>{{ field_error(errors, "security_date") }}</div>
+            <div class="field"><label for="security_note">One-line note</label><input type="text" id="security_note" name="security_note" maxlength="300" value="{{ posted.security_note or '' }}"{{ described(errors, "security_note") }}>{{ field_error(errors, "security_note") }}</div>
+          </div>
+          <button type="submit" class="btn btn-secondary"{% if demo %} disabled aria-describedby="ready-demo"{% endif %}>Record security check</button>
         </fieldset>
-        <div class="field">
-          <label for="ship-limits">Limits (needed for Approved with limits)</label>
-          <textarea id="ship-limits" name="limits" rows="2"></textarea>
-        </div>
-        <button type="submit" class="btn"{% if mode == "demo" %} disabled{% endif %}>Ship it</button>
       </form>
       {% endif %}
+
+      <form method="post" action="/tools/{{ t.id }}/check" class="subform" novalidate>
+        <fieldset class="plain">
+          <legend>How the trial went</legend>
+          <fieldset class="field"{{ described(errors, "kept_using") }}>
+            <legend id="kept_using">Did the team keep using it?</legend>
+            {% set kept = posted.get("kept_using", rc.kept_using) %}
+            <div class="choices">
+              {% for key, text in KEPT_USING.items() %}<label class="choice"><input type="radio" name="kept_using" value="{{ key }}"{% if kept == key %} checked{% endif %}> {{ text }}</label>{% endfor %}
+            </div>
+            {{ field_error(errors, "kept_using") }}
+          </fieldset>
+          <div class="field">
+            <label for="went_wrong">Anything go wrong?</label>
+            <p class="hint" id="went_wrong-hint">"Nothing" is a fine answer.</p>
+            <textarea id="went_wrong" name="went_wrong" rows="2"{{ described(errors, "went_wrong", "went_wrong-hint") }}>{{ posted.get("went_wrong", rc.went_wrong or "") }}</textarea>
+            {{ field_error(errors, "went_wrong") }}
+          </div>
+          <div class="field">
+            <label for="how_tested">How was it tested?</label>
+            <p class="hint" id="how_tested-hint">What did you try it on, and how did it do?</p>
+            <textarea id="how_tested" name="how_tested" rows="3"{{ described(errors, "how_tested", "how_tested-hint") }}>{{ posted.get("how_tested", rc.how_tested or "") }}</textarea>
+            {{ field_error(errors, "how_tested") }}
+          </div>
+          <div class="field">
+            <label for="test_link">Link to test results (optional)</label>
+            <p class="hint" id="test_link-hint">For example, a link to test results.</p>
+            <input type="url" id="test_link" name="test_link" value="{{ posted.get("test_link", rc.test_link or "") }}"{{ described(errors, "test_link", "test_link-hint") }}>
+            {{ field_error(errors, "test_link") }}
+          </div>
+          <button type="submit" class="btn btn-secondary"{% if demo %} disabled aria-describedby="ready-demo"{% endif %}>Save answers</button>
+        </fieldset>
+      </form>
+
+      {% if stopped %}
+      <p class="notice notice-warn" role="status" style="margin:0">{{ icon("info", 18) }} {{ MSG_STOPPED }}</p>
+      {% else %}
+      <form method="post" action="/tools/{{ t.id }}/ship" class="subform" novalidate style="margin-bottom:0">
+        <fieldset class="plain">
+          <legend>Ship it</legend>
+          <fieldset class="field"{{ described(errors, "to_status") }}>
+            <legend id="to_status">Move from being tried to</legend>
+            <div class="choices">
+              <label class="choice"><input type="radio" name="to_status" value="approved"{% if posted.to_status != "approved_with_limits" %} checked{% endif %}> Approved</label>
+              <label class="choice"><input type="radio" name="to_status" value="approved_with_limits"{% if posted.to_status == "approved_with_limits" %} checked{% endif %}> Approved with limits</label>
+            </div>
+            {{ field_error(errors, "to_status") }}
+          </fieldset>
+          <div class="field">
+            <label for="ship_limits">Limits (needed for Approved with limits)</label>
+            <textarea id="ship_limits" name="limits" rows="2"{{ described(errors, "ship_limits") }}>{{ posted.get("limits", t.limits or "") }}</textarea>
+            {{ field_error(errors, "ship_limits") }}
+          </div>
+          <button type="submit" class="btn"{% if demo or not can_ship %} disabled aria-describedby="ship-line"{% endif %}>Ship it</button>
+          {% if not can_ship %}<p class="muted small" id="ship-line" style="margin:8px 0 0">Ship it opens when all {{ READY_TOTAL }} items are ready.{% if demo %} {{ TOOL_READONLY }}{% endif %}</p>
+          {% elif demo %}<p class="muted small" id="ship-line" style="margin:8px 0 0">{{ TOOL_READONLY }}</p>{% endif %}
+        </fieldset>
+      </form>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {% if viewer == "reviewer" %}
+    <section class="card" id="manage" aria-labelledby="manage-h">
+      <h2 id="manage-h">Manage this tool</h2>
+      {% if demo %}<p class="muted small" id="manage-demo">{{ TOOL_READONLY }}</p>{% endif %}
+
+      {% if t.status == "being_tried" %}
+      <form method="post" action="/tools/{{ t.id }}/extend" class="subform" novalidate>
+        <fieldset class="plain">
+          <legend>Extend the trial</legend>
+          {% if t.trial_extended %}
+          <p style="margin:0">This trial was already extended once. Ship it or retire it.</p>
+          {% else %}
+          <div class="field">
+            <label for="new_end">New end date</label>
+            <p class="hint" id="new_end-hint">A trial can be extended once, to no later than {{ latest_extension|date }}.</p>
+            <input type="date" id="new_end" name="new_end" min="{{ (t.trial_ends if t.trial_ends > today else today).isoformat() }}" max="{{ latest_extension.isoformat() }}" value="{{ posted.new_end or '' }}"{{ described(errors, "new_end", "new_end-hint") }}>
+            {{ field_error(errors, "new_end") }}
+          </div>
+          <button type="submit" class="btn btn-secondary"{% if demo %} disabled aria-describedby="manage-demo"{% endif %}>Extend the trial</button>
+          {% endif %}
+        </fieldset>
+      </form>
+      {% endif %}
+
+      {% if "review_due" in flags %}
+      <form method="post" action="/tools/{{ t.id }}/reviewed" class="subform" novalidate>
+        <fieldset class="plain">
+          <legend>Mark reviewed</legend>
+          <fieldset class="field"{{ described(errors, "still_in_use") }}>
+            <legend id="still_in_use">Still in use?</legend>
+            <div class="seg">
+              <label><input type="radio" name="still_in_use" value="yes"{% if posted.still_in_use == "yes" %} checked{% endif %}> Yes</label>
+              <label><input type="radio" name="still_in_use" value="no"{% if posted.still_in_use == "no" %} checked{% endif %}> No</label>
+            </div>
+            {{ field_error(errors, "still_in_use") }}
+          </fieldset>
+          <div class="field">
+            <label for="review_change">Anything to change? (optional)</label>
+            <textarea id="review_change" name="review_change" rows="2"{{ described(errors, "review_change") }}>{{ posted.review_change or "" }}</textarea>
+            {{ field_error(errors, "review_change") }}
+          </div>
+          <div class="field">
+            <label for="next_review_month">Next review</label>
+            <p class="hint" id="next_review_month-hint">Six months from now unless you change it.</p>
+            <input type="month" id="next_review_month" name="next_review_month" value="{{ posted.next_review_month or next_review_default }}"{{ described(errors, "next_review_month", "next_review_month-hint") }}>
+            {{ field_error(errors, "next_review_month") }}
+          </div>
+          <button type="submit" class="btn"{% if demo %} disabled aria-describedby="manage-demo"{% endif %}>Mark reviewed</button>
+        </fieldset>
+      </form>
+      {% endif %}
+
       {% if t.status != "retired" %}
-      <form method="post" action="/tools/{{ t.id }}/retire" class="subform">
-        <div class="field">
-          <label for="replaced_by">Retire this tool. Replacement (optional)</label>
-          <select id="replaced_by" name="replaced_by">
-            <option value="">No replacement</option>
-            {% for x in replacements|sort(attribute="name") %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}
-          </select>
-        </div>
-        <button type="submit" class="btn btn-secondary"{% if mode == "demo" %} disabled{% endif %}>Retire</button>
+      <form method="post" action="/tools/{{ t.id }}/retire" class="subform" novalidate>
+        <fieldset class="plain">
+          <legend>Retire this tool</legend>
+          <div class="field">
+            <label for="retire_reason">Why retire it? (one line)</label>
+            <input type="text" id="retire_reason" name="retire_reason" maxlength="300" value="{{ posted.retire_reason or '' }}"{{ described(errors, "retire_reason") }}>
+            {{ field_error(errors, "retire_reason") }}
+          </div>
+          <div class="field">
+            <label for="replaced_by">Replacement (optional)</label>
+            <select id="replaced_by" name="replaced_by"{{ described(errors, "replaced_by") }}>
+              <option value="">No replacement</option>
+              {% for x in replacements|sort(attribute="name") %}<option value="{{ x.id }}"{% if posted.replaced_by == x.id %} selected{% endif %}>{{ x.name }}</option>{% endfor %}
+            </select>
+            {{ field_error(errors, "replaced_by") }}
+          </div>
+          <button type="submit" class="btn btn-secondary"{% if demo %} disabled aria-describedby="manage-demo"{% endif %}>Retire</button>
+        </fieldset>
       </form>
       {% endif %}
       <a class="btn btn-secondary" href="/tools/{{ t.id }}/edit">Edit</a>
@@ -71,9 +235,40 @@
         <p><strong>{{ origin.title }}</strong></p>
         <p>{{ label(origin_decision.outcome) }}</p>
         <p>{{ origin_decision.reason }}</p>
-        <p class="muted small" style="margin:0">Decided {{ origin_decision.decided_at|date }}. <a href="/decided?q={{ origin.title|urlencode }}">See it in Decided before</a></p>
+        <p class="muted small" style="margin:0">Decided {{ origin_decision.decided_at|date }}. <a href="/decided?q={{ origin.title|urlencode }}#decision-{{ origin.id }}">See it in Decided before</a></p>
       {% else %}
         <p style="margin:0">This tool was in use before requests came through {{ APP_NAME }}.</p>
+      {% endif %}
+    </section>
+
+    {% if t.status in ("approved", "approved_with_limits") and has_answers %}
+    <section class="card" aria-labelledby="earned-h">
+      <h2 id="earned-h">How it earned approval</h2>
+      <p class="muted small">What the reviewer recorded in the ready to ship check before shipping it.</p>
+      {{ ready_answers(t, rc) }}
+    </section>
+    {% endif %}
+
+    <section class="card" aria-labelledby="journey-h">
+      <h2 id="journey-h">Its journey</h2>
+      {% if journey %}
+      <ol class="timeline journey">
+        {% for e in journey %}
+        <li>
+          <strong>{{ JOURNEY_EVENTS.get(e.kind, e.kind) }}</strong><span class="when">{{ e.date|date }}</span>
+          {% if e.note %}<p class="small">{{ e.note }}</p>{% endif %}
+          {% if e.kind == "requested" and origin and origin_decision %}<p class="small"><a href="/decided?q={{ origin.title|urlencode }}#decision-{{ origin.id }}">See the decision on Decided before</a></p>{% endif %}
+          {% if e.kind == "shipped" and has_answers %}
+          <div class="journey-answers small">
+            <p><strong>Ready to ship answers</strong></p>
+            {{ ready_answers(t, rc) }}
+          </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <p style="margin:0">No steps recorded yet.</p>
       {% endif %}
     </section>
   </div>

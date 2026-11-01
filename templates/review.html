@@ -6,6 +6,21 @@
 <p class="page-intro">Requests waiting for a decision. Claude sizes each one up and can draft the reason. You decide.</p>
 {% if flash %}<p class="notice {{ 'notice-info' if mode == 'demo' and flash == DEMO_READONLY else 'notice-ok' }}" role="status">{{ flash }}</p>{% endif %}
 
+{% if needs %}
+<section class="card needs-card" aria-labelledby="needs-h">
+  <h2 id="needs-h">Needs a decision</h2>
+  <p class="muted small">Trials that ran out and reviews that came due. Open a tool to ship it, extend the trial, mark it reviewed or retire it.</p>
+  <ul class="list">
+    {% for n in needs %}
+    <li class="needs-item">
+      <div class="list-item"><a href="/tools/{{ n.tool.id }}"><strong>{{ n.tool.name }}</strong></a>{{ label(n.flag) }}</div>
+      <p class="small" style="margin:0">{{ n.line }}</p>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
 {% macro yes_no(name, legend_text, value) %}
 <fieldset class="field checklist-q"{{ described(errors, name) }}>
   <legend id="{{ name }}">{{ legend_text }}</legend>

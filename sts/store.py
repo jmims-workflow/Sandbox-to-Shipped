@@ -8,18 +8,19 @@ from __future__ import annotations
 
 import copy
 import re
-from datetime import datetime, time
+from datetime import date, datetime, time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
+from sqlalchemy import text
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import Session, SQLModel, create_engine, delete, select
 
 from .demo_data import DemoData
-from .models import Decision, Request, Tool
+from .models import CUSTOMER_INFO, Decision, Request, Tool
 
 JSON_FIELDS = {
-    Tool: ("teams", "allowed_info"),
+    Tool: ("teams", "allowed_info", "ready_check", "journey"),
     Request: ("info", "matches", "size_up", "questions", "timeline", "draft"),
     Decision: ("checklist",),
 }
@@ -67,6 +68,41 @@ class DemoStore:
         raise ReadOnlyError("Demo mode saves nothing.")
 
 
+def upgraded_security(tool: Tool, decision: Optional[Decision]) -> str:
+    """For a tool saved before the security check was kept on tools."""
+    if decision is not None:
+        value = (decision.checklist or {}).get("security_check")
+        if value in ("not_needed", "needed", "done"):
+            return value
+    # Nothing recorded: a tool that uses customer details needs the check recorded.
+    return "needed" if set(tool.allowed_info or []) & CUSTOMER_INFO else "not_needed"
+
+
+def journey_from_known(
+    tool: Tool, origin: Optional[Request], decision: Optional[Decision], today: date
+) -> list[dict[str, Any]]:
+    """Build a journey for a tool saved by an earlier version, from what is already known."""
+    events: list[dict[str, Any]] = []
+
+    def add(kind: str, on: date, note: Optional[str] = None):
+        events.append({"kind": kind, "date": on.isoformat(), "note": note})
+
+    if origin is not None:
+        add("requested", origin.submitted_at.date())
+        for e in origin.timeline or []:
+            if str(e.get("label", "")).startswith("Security check") and e.get("date"):
+                add("security_done", date.fromisoformat(str(e["date"])[:10]))
+    if decision is not None:
+        team = (tool.teams or [tool.owner_team])[0]
+        add("being_tried", decision.decided_at.date(), f"By {team}.")
+    if tool.status != "being_tried" or decision is None:
+        # The date of this step wasn't kept, so it is recorded on the day of the upgrade.
+        kind = {"being_tried": "being_tried", "retired": "retired"}.get(tool.status, "shipped")
+        if not any(e["kind"] == kind for e in events):
+            add(kind, today, "Recorded when journeys were added. The earlier date wasn't kept.")
+    return sorted(events, key=lambda e: e["date"])
+
+
 class LiveStore:
     read_only = False
 
@@ -76,6 +112,46 @@ class LiveStore:
             f"sqlite:///{Path(data_dir) / 'sts.db'}", connect_args={"check_same_thread": False}
         )
         SQLModel.metadata.create_all(self.engine)
+        self.upgrade()
+
+    # Columns added after the first version: name -> SQL to add it with a safe default.
+    NEW_TOOL_COLUMNS = {
+        "security_check": "VARCHAR NOT NULL DEFAULT 'not_needed'",
+        "trial_extended": "BOOLEAN NOT NULL DEFAULT 0",
+        "ready_check": "JSON",
+        "journey": "JSON",
+    }
+
+    def upgrade(self) -> None:
+        """Bring a database from an earlier version up to date without losing data.
+
+        create_all() adds missing tables but not missing columns, so new columns are
+        added here. Tools without a journey get one built from what is already known.
+        """
+        with self.engine.begin() as conn:
+            have = {row[1] for row in conn.execute(text("PRAGMA table_info(tool)"))}
+            added = [name for name in self.NEW_TOOL_COLUMNS if name not in have]
+            for name in added:
+                conn.execute(text(f"ALTER TABLE tool ADD COLUMN {name} {self.NEW_TOOL_COLUMNS[name]}"))
+        with self._session() as s:
+            tools = list(s.exec(select(Tool)))
+            if not any(t.journey is None or t.ready_check is None for t in tools):
+                return
+            requests = {r.id: r for r in s.exec(select(Request))}
+            decisions = {d.request_id: d for d in s.exec(select(Decision))}
+        today = self.now().date()
+        changed = []
+        for t in tools:
+            if t.ready_check is None:
+                t.ready_check = {}
+            if t.journey is None:
+                origin = requests.get(t.from_request or "")
+                decision = decisions.get(t.from_request or "")
+                if "security_check" in added:
+                    t.security_check = upgraded_security(t, decision)
+                t.journey = journey_from_known(t, origin, decision, today)
+            changed.append(t)
+        self.save(*changed)
 
     def _session(self) -> Session:
         return Session(self.engine, expire_on_commit=False)

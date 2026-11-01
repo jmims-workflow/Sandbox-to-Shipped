@@ -19,7 +19,7 @@
 {% macro nav_links() %}
 <ul class="nav-list">
 {% if viewer == "reviewer" %}
-  <li><a href="/review" class="nav-link"{% if current == "review" %} aria-current="page"{% endif %}>{{ icon("checklist") }}<span>Review queue</span>{% if waiting_count %}<span class="badge" aria-label="{{ waiting_count }} waiting">{{ waiting_count }}</span>{% endif %}</a></li>
+  <li><a href="/review" class="nav-link"{% if current == "review" %} aria-current="page"{% endif %}>{{ icon("checklist") }}<span>Review queue</span>{% if badge_count %}<span class="badge" aria-label="{{ badge_count }} waiting or needing a decision">{{ badge_count }}</span>{% endif %}</a></li>
 {% else %}
   <li><a href="/" class="nav-link"{% if current == "request" %} aria-current="page"{% endif %}>{{ icon("plus") }}<span>Request a tool</span></a></li>
   <li><a href="/requests" class="nav-link"{% if current == "mine" %} aria-current="page"{% endif %}>{{ icon("inbox") }}<span>My requests</span></a></li>

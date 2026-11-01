@@ -18,7 +18,7 @@
 <p class="count-line" role="status">{{ items|length }} decision{{ "" if items|length == 1 else "s" }}.</p>
 <ul class="list">
   {% for it in items %}
-  <li class="card">
+  <li class="card" id="decision-{{ it.id }}">
     <div class="list-item" style="margin-bottom:8px"><h2>{{ it.title }}</h2>{{ label(it.outcome) }}</div>
     <p>{{ it.reason }}</p>
     <div class="callout"><strong>What would change the answer:</strong> {{ it.what_would_change }}</div>

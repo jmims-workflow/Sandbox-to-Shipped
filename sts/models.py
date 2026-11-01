@@ -71,7 +71,26 @@ SECURITY_CHECK: dict[str, str] = {
     "done": "Done",
 }
 
+# The ready to ship check: "Did the team keep using it?"
+KEPT_USING: dict[str, str] = {
+    "regularly": "Yes, regularly",
+    "sometimes": "Some of the time",
+    "stopped": "No",
+}
+
+# Each tool's journey. Every event has a date and an optional note.
+JOURNEY_EVENTS: dict[str, str] = {
+    "requested": "Requested",
+    "being_tried": "Started being tried",
+    "security_done": "Security check done",
+    "extended": "Trial extended",
+    "shipped": "Shipped",
+    "reviewed": "Reviewed",
+    "retired": "Retired",
+}
+
 MAX_TEXT = 5000
+MAX_LINE = 300
 
 
 class Tool(SQLModel, table=True):
@@ -90,6 +109,14 @@ class Tool(SQLModel, table=True):
     replaced_by: Optional[str] = None
     from_request: Optional[str] = None
     owner_agreed: bool = True
+    # From the decision that created the tool: not_needed, needed or done.
+    security_check: str = "not_needed"
+    trial_extended: bool = False
+    # Answers recorded in the ready to ship check:
+    # {"kept_using", "went_wrong", "how_tested", "test_link", "security_date", "security_note"}
+    ready_check: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    # Each event: {"kind": one of JOURNEY_EVENTS, "date": "YYYY-MM-DD", "note": str or None}
+    journey: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
 
 
 class Request(SQLModel, table=True):

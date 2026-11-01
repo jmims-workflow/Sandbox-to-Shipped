@@ -11,10 +11,12 @@
     <li><span class="step">Request</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
     <li><span class="step">Check what exists</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
     <li><span class="step">Reviewer decides</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
-    <li><span class="step tried">{{ icon("flask", 16) }} Being tried</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
+    <li><span class="step tried">{{ icon("flask", 16) }} <span>Being tried <span class="step-sub">the sandbox</span></span></span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
+    <li><span class="step">{{ icon("checklist", 16) }} Ready to ship check</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
     <li><span class="step approved">{{ icon("check", 16) }} Approved</span></li>
   </ol>
-  <p class="muted" style="margin:0">From sandbox to shipped: a new tool starts as being tried by one team, and moves to approved once it proves itself.</p>
+  <p style="margin:0 0 8px">Why the name: every tool starts in the sandbox and is shipped only when it has earned it.</p>
+  <p class="muted" style="margin:0">{{ SANDBOX_LINE }} Before a reviewer ships it, a short check confirms the owner agreed, security is covered, the team kept using it, and how it was tested.</p>
 </section>
 
 <section class="card" aria-labelledby="ideas-h">
@@ -27,6 +29,7 @@
     <li><strong>We ask what you actually know.</strong> The form asks how often and who would use it, not how many hours it would save, because hours are hard to guess.</li>
     <li><strong>Past decisions are open, requesters stay private.</strong> Decided before shows every past decision and its reason so nobody asks twice. It never shows who asked.</li>
     <li><strong>Owners agree to be owners.</strong> Nobody is listed as a tool owner unless they agreed to it.</li>
+    <li><strong>Shipped means it earned it.</strong> Every new tool starts in the sandbox, labeled being tried: one team, a named owner and an end date. It moves to approved only after a reviewer confirms the owner agreed, security is covered, the team kept using it, and how it was tested. Trials that run out and reviews that come due are flagged, so nothing sits in the sandbox or the inventory forever.</li>
   </ol>
 </section>
 {% endblock %}

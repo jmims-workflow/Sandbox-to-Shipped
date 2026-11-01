@@ -39,3 +39,18 @@
     <p class="muted small">Reviewers see these matches and your note.</p>
   </div>
 {% endif %}
+{% if panel and panel.checked and not panel.error and panel.asked_before %}
+{% set a = panel.asked_before %}
+<article class="asked-card" aria-labelledby="asked-before-h">
+  <h3 id="asked-before-h">{{ icon("history", 18) }}<span>Asked before</span></h3>
+  <p class="small muted">Someone asked for something like this. Here's what was decided.</p>
+  <div class="match-head">
+    <p style="margin:0"><strong>{{ a.title }}</strong></p>
+    {{ label(a.outcome) }}
+  </div>
+  <p>{{ a.why }}</p>
+  <p><strong>The reason:</strong> {{ a.reason }}</p>
+  <div class="callout"><strong>What would change the answer:</strong> {{ a.what_would_change }}</div>
+  <p class="match-links"><a href="/decided?q={{ a.title|urlencode }}#decision-{{ a.id }}">See it on Decided before</a></p>
+</article>
+{% endif %}
