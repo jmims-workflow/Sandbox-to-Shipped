@@ -4,6 +4,7 @@
 {% block content %}
 <a class="back-link" href="/requests">{{ icon("back", 18) }}All my requests</a>
 <h1>{{ r.title }}</h1>
+{% if needed_too %}<p class="notice notice-info" role="status">You said you need this too. You'll see the decision here when it comes.</p>{% endif %}
 {% if submitted %}<p class="notice notice-ok" role="status">Your request is in. A reviewer will take a look, and the decision will show up here.</p>{% endif %}
 {% if sizeup_note %}<p class="notice notice-warn" role="status">Claude couldn't size up this request, so the reviewer will read it as is. That's fine.</p>{% endif %}
 
@@ -50,10 +51,10 @@
         <form method="post" action="/requests/{{ r.id }}/ask">
           <div class="field">
             <label for="question">Your question</label>
-            <textarea id="question" name="question" rows="3"{% if ask_error %} aria-invalid="true" aria-describedby="question-error"{% endif %}{% if mode == "demo" %} aria-describedby="ask-demo"{% endif %}>{{ ask_text }}</textarea>
+            <textarea id="question" name="question" rows="3"{% if ask_error %} aria-invalid="true" aria-describedby="question-error"{% endif %}{% if read_only %} aria-describedby="ask-demo"{% endif %}>{{ ask_text }}</textarea>
             {% if ask_error %}<p class="field-error" id="question-error" role="alert">{{ ask_error }}</p>{% endif %}
           </div>
-          {% if mode == "demo" %}
+          {% if read_only %}
           <button type="submit" class="btn" disabled>Send question</button>
           <p class="muted small" id="ask-demo" style="margin:8px 0 0">{{ ASK_READONLY }}</p>
           {% else %}
@@ -89,14 +90,15 @@
 
   <div class="stack">
     <section class="card" aria-labelledby="asked-h">
-      <h2 id="asked-h">What you asked for</h2>
+      <h2 id="asked-h">{{ "What was asked for" if needed_too else "What you asked for" }}</h2>
       <dl class="facts">
         <div><dt>The task</dt><dd>{{ r.task }}</dd></div>
         <div><dt>How often</dt><dd>{{ HOW_OFTEN[r.how_often] }}</dd></div>
         <div><dt>Who would use it</dt><dd>{{ WHO_USES[r.who_uses] }}</dd></div>
-        <div><dt>Information</dt><dd>{% for i in r.info %}{{ INFO_KINDS[i] }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd></div>
+        <div><dt>Information it uses</dt><dd>{% for i in r.info %}{{ INFO_KINDS[i] }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd></div>
         {% if r.extra %}<div><dt>Anything else</dt><dd>{{ r.extra }}</dd></div>{% endif %}
-        {% if r.whats_missing %}<div><dt>What's missing</dt><dd>{{ r.whats_missing }}</dd></div>{% endif %}
+        {% if r.whats_missing and not needed_too %}<div><dt>What's missing</dt><dd>{{ r.whats_missing }}</dd></div>{% endif %}
+        {% if needed_too %}<div><dt>Your note</dt><dd>{{ my_note or "No note." }}</dd></div>{% endif %}
       </dl>
     </section>
     <section class="card" aria-labelledby="timeline-h">

@@ -5,7 +5,8 @@ from fastapi.testclient import TestClient
 from .conftest import as_reviewer
 
 NEW_REQUEST = {"task": "Turn my call notes into a short follow-up email", "team": "Sales",
-               "how_often": "few_week", "who_uses": "my_team", "info": ["customer_contact"]}
+               "how_often": "few_week", "who_uses": "my_team", "info": ["customer_contact"],
+               "sends_without_check": "no", "keeps_elsewhere": "no", "ai_service": "claude"}
 
 
 def seed(app):

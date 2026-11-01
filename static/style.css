@@ -24,7 +24,14 @@
   --tried-fill: #DFF0EC;
   --neutral-text: #3E4441;
   --neutral-fill: #E8E6E0;
-  /* Needs a decision: Trial ended and Review due. */
+  /* Live preview mode pill. */
+  --preview-text: #4B2370;
+  --preview-fill: #E8DDF4;
+  /* Early warnings on Request a tool. */
+  --warn-text: #7A4E00;
+  --warn-fill: #FBF0D9;
+  --warn-border: #E7C98A;
+  /* Needs a decision: Pilot ended and Review due. */
   --trial-ended-text: #7A4E00;
   --trial-ended-fill: #FBF0D9;
   --review-due-text: #7A4E00;
@@ -37,6 +44,8 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
 
 html { -webkit-text-size-adjust: 100%; }
 
@@ -137,6 +146,7 @@ a:hover { color: var(--purple-hover); }
 }
 .mode-demo { background: var(--neutral-fill); color: var(--neutral-text); }
 .mode-live { background: var(--purple-soft); color: var(--purple); }
+.mode-preview { background: var(--preview-fill); color: var(--preview-text); }
 
 main {
   flex: 1; min-width: 0;
@@ -360,7 +370,7 @@ dl.facts dd { margin: 2px 0 0; }
 .tool-card p { margin: 0; }
 .tool-card .open { margin-top: auto; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
 
-/* ---- Tool page: the sandbox, the ready to ship check, the journey ---- */
+/* ---- Tool page: the pilot, the ready to ship check, the journey ---- */
 .sandbox-note {
   display: flex; gap: 12px; align-items: flex-start;
   background: var(--tried-fill); color: var(--tried-text);
@@ -442,6 +452,7 @@ fieldset.plain > legend { font-weight: 700; padding: 0; margin-bottom: 12px; }
 
 .checklist-q { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; }
 .checklist-q legend { float: left; width: 100%; }
+.checklist-q.stacked { grid-template-columns: minmax(0, 1fr); }
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .seg label {
   display: inline-flex; align-items: center; gap: 8px;
@@ -541,3 +552,54 @@ fieldset.plain > legend { font-weight: 700; padding: 0; margin-bottom: 12px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+/* ---- Request details, the security check and I need this too ---- */
+dl.details-list { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 16px; }
+.security-result {
+  margin-top: 16px; padding: 12px 16px; border-radius: var(--radius-control);
+  border: 1px solid var(--card-border); background: var(--page);
+}
+.security-result ul { margin: 6px 0 8px; padding-left: 20px; }
+.security-result dl.facts { gap: 8px; }
+.security-line { display: flex; gap: 8px; align-items: flex-start; margin: 0; }
+.security-line .icon { margin-top: 2px; }
+.security-passed .security-line, .security-not_needed .security-line { color: var(--tried-text); }
+.security-person .security-line { color: var(--limits-text); }
+
+.needed-by {
+  display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px;
+  background: var(--existing-fill); color: var(--existing-text); font-size: 0.85rem; font-weight: 600;
+}
+.queue .needed-by { margin-top: 6px; }
+.needed-list { margin-top: 16px; }
+.needed-list ul { margin: 6px 0 0; padding-left: 20px; }
+.needed-list li + li { margin-top: 4px; }
+
+.reviewers-only {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  background: var(--surface); color: var(--purple); border: 1px solid var(--purple-soft-border);
+  font-size: 0.85rem; font-weight: 600;
+}
+
+.early-warning {
+  display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 0;
+  background: var(--warn-fill); color: var(--warn-text); border: 1px solid var(--warn-border);
+  border-radius: var(--radius-control); padding: 10px 12px; font-size: 0.95rem;
+}
+.early-warning:empty { display: none; }
+.early-warning .icon { margin-top: 2px; }
+.security-questions > legend { font-size: 1.05rem; }
+.security-questions[hidden] { display: none; }
+
+.need-card { border-left-color: var(--purple); }
+.need-card h3 { color: var(--purple); }
+.need-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.need-row .field { flex: 1 1 220px; }
+
+.look-for { margin-top: 24px; max-width: 70ch; }
+.look-for summary {
+  cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center;
+}
+.look-for ul { padding-left: 20px; margin: 8px 0 0; }
+.look-for li + li { margin-top: 8px; }
+.look-for ul ul li + li { margin-top: 4px; }

@@ -19,7 +19,7 @@
   </div>
   <div class="field">
     <label for="status">Status</label>
-    <select id="status" name="status" aria-describedby="sandbox-hint">
+    <select id="status" name="status">
       {% for key, text in status_filters.items() %}<option value="{{ key }}"{% if filters.status == key %} selected{% endif %}>{{ text }}</option>{% endfor %}
     </select>
   </div>
@@ -31,10 +31,9 @@
     </select>
   </div>
   <button type="submit" class="btn">Show tools</button>
-  <p class="hint filters-note" id="sandbox-hint">{{ icon("flask", 16) }}<span>{{ SANDBOX_LINE }}</span></p>
 </form>
 
-<p class="count-line" role="status">Showing {{ tools|length }} of {{ total }} tools. {{ counts.ready }} ready to use, {{ counts.being_tried }} being tried{% if counts.retired %}, {{ counts.retired }} retired{% endif %}.</p>
+<p class="count-line" role="status">Showing {{ tools|length }} of {{ total }} tools. {{ counts.ready }} ready to use, {{ counts.being_tried }} in pilot{% if counts.retired %}, {{ counts.retired }} retired{% endif %}.</p>
 
 {% if tools %}
 <ul class="tool-grid" style="list-style:none;margin:0;padding:0">

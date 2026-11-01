@@ -10,13 +10,14 @@ from sts.rules import long_date
 
 from .conftest import DEMO_DIR, as_requester, as_reviewer, visible_text
 
-BANNED = ["intake", "triage", "ticket", "workflow", "governance", "PII", "LLM", "model", "prompt", "deny", "denied"]
+BANNED = ["intake", "triage", "ticket", "workflow", "governance", "PII", "LLM", "model", "prompt", "deny", "denied",
+          "being tried"]
 REQUESTER_PAGES = ["/", "/requests", "/requests/r-1044", "/requests/r-1048", "/requests/r-1045", "/requests/r-1042",
                    "/requests/r-1041", "/requests/r-1043", "/tools", "/tools?status=all", "/tools/call-recap-writer",
                    "/tools/subject-line-tester", "/decided", "/how-it-works", "/?from=r-1044",
                    "/tools/webinar-invite-writer", "/tools/partner-outreach-drafts", "/tools/translation-helper",
                    "/tools/proposal-drafter"]
-REVIEWER_PAGES = ["/review", "/review/r-1046", "/review/r-1047", "/review/r-1044", "/review/r-1045",
+REVIEWER_PAGES = ["/review", "/review/r-1046", "/review/r-1047", "/review/r-1049", "/review/r-1044", "/review/r-1045",
                   "/tools/translation-helper", "/tools/proposal-drafter/edit", "/decided",
                   "/tools/partner-outreach-drafts", "/tools/proposal-drafter", "/tools/webinar-invite-writer",
                   "/tools/call-recap-writer", "/tools/subject-line-tester", "/tools", "/how-it-works"]
@@ -132,13 +133,13 @@ def test_decided_before_filters(demo_client):
 
 def test_inventory_filters_and_count(demo_client):
     html = demo_client.get("/tools").text
-    assert "Showing 8 of 9 tools. 6 ready to use, 2 being tried." in html
+    assert "Showing 8 of 9 tools. 6 ready to use, 2 in pilot." in html
     assert "Subject Line Tester" not in html
     html = demo_client.get("/tools?status=all").text
     assert "Subject Line Tester" in html
     html = demo_client.get("/tools?status=being_tried").text
     ends = long_date(date.today() + timedelta(days=14))
-    assert f"Being tried by International Marketing until {ends}" in html
+    assert f"In pilot with International Marketing until {ends}" in html
     html = demo_client.get("/tools?info=public_only&team=Marketing").text
     assert "Webinar Invite Writer" in html and "Call Recap Writer" not in html
 
@@ -190,7 +191,7 @@ def test_no_banned_words_in_rendered_pages(demo_client, viewer, pages):
         assert r.status_code == 200, page
         text = visible_text(r.text)
         for word in BANNED:
-            assert not re.search(rf"\b{word}\b", text, re.IGNORECASE), f"{word!r} on {page}"
+            assert not re.search(rf"\b{word.replace(' ', r'\s+')}\b", text, re.IGNORECASE), f"{word!r} on {page}"
 
 
 def test_no_banned_words_in_review_states(demo_client):
@@ -206,7 +207,7 @@ def test_no_banned_words_in_review_states(demo_client):
     for r in pages:
         text = visible_text(r.text)
         for word in BANNED:
-            assert not re.search(rf"\b{word}\b", text, re.IGNORECASE), word
+            assert not re.search(rf"\b{word.replace(' ', r'\s+')}\b", text, re.IGNORECASE), word
 
 
 def test_demo_makes_no_network_calls_and_saves_nothing(tmp_path, monkeypatch):
@@ -236,7 +237,7 @@ def test_demo_makes_no_network_calls_and_saves_nothing(tmp_path, monkeypatch):
     assert not data_dir.exists() or not any(data_dir.iterdir())
     # Data is unchanged.
     html = client.get("/tools/translation-helper").text
-    assert "Being tried" in html
+    assert "In pilot" in html
     assert "Waiting" in client.get("/review/r-1048").text
 
 

@@ -28,7 +28,7 @@ STOPWORDS = set(
 
 
 def eligible_tools(inventory: Iterable[Tool]) -> list[Tool]:
-    """Only tools that are approved, approved with limits or being tried."""
+    """Only tools that are approved, approved with limits or in pilot (being_tried)."""
     return [t for t in inventory if t.status in MATCHABLE_STATUSES]
 
 
@@ -55,7 +55,10 @@ def clean_matches(raw: Iterable[Any], inventory: Iterable[Tool]) -> list[dict[st
 
 
 def clean_related(raw: Any, past_decisions: Iterable[dict]) -> Optional[dict[str, str]]:
-    """Keep a related past decision only if its id was in the list sent. Otherwise drop it."""
+    """Keep a related past decision or request still in review only if its id was in the list sent.
+
+    Otherwise drop it. Both lists hold dicts with an "id"; neither ever holds a requester name.
+    """
     if raw is None:
         return None
     if hasattr(raw, "model_dump"):

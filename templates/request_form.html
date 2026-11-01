@@ -6,6 +6,7 @@
 <p class="page-intro">Tell us what you're trying to do. We'll check what already exists before anyone builds something new.</p>
 
 {% if notice %}<p class="notice notice-info" role="status">{{ notice }}</p>{% endif %}
+{% if need_error %}<p class="notice notice-warn" role="alert">{{ need_error }}</p>{% endif %}
 {% if errors %}
 <div class="notice notice-error" role="alert" tabindex="-1" id="error-summary">
   <strong>Please fix {{ "this" if errors|length == 1 else "these" }} before submitting:</strong>
@@ -13,8 +14,15 @@
 </div>
 {% endif %}
 
+{% macro warning(key) -%}
+{%- set msg = {"info": WARN_SENSITIVE, "sends_without_check": WARN_SENDS}[key] -%}
+<p class="early-warning" id="warn-{{ key }}" role="status" data-message="{{ msg }}">{% if warnings.get(key) %}{{ icon("info", 18) }}<span>{{ msg }}</span>{% endif %}</p>
+{%- endmacro %}
+
+{# One form holds the request, the security questions and the match panel, so one Submit sends everything. #}
+<form id="request-form" method="post" action="/" novalidate data-check-url="/api/matches">
 <div class="two-col">
-  <form id="request-form" class="card" method="post" action="/" novalidate data-check-url="/api/matches">
+  <div class="card">
     <input type="hidden" name="copied_from" value="{{ f.copied_from }}">
     <div class="field">
       <label for="task">What are you trying to do?</label>
@@ -52,7 +60,7 @@
       {{ field_error(errors, "who_uses") }}
     </fieldset>
 
-    <fieldset class="field" aria-describedby="info-hint{% if errors.get('info') %} info-error{% endif %}">
+    <fieldset class="field" aria-describedby="info-hint warn-info{% if errors.get('info') %} info-error{% endif %}">
       <legend>What information would it use?</legend>
       <p class="hint" id="info-hint">Not sure? Check it anyway. A reviewer will help sort it out.</p>
       <div class="choices">
@@ -60,7 +68,43 @@
         <label class="choice"><input type="checkbox" name="info" value="{{ key }}"{% if loop.first %} id="info-first"{% endif %}{% if key in f.info %} checked{% endif %}> {{ text }}</label>
       {% endfor %}
       </div>
+      {{ warning("info") }}
       {{ field_error(errors, "info") }}
+    </fieldset>
+
+    <fieldset class="subform security-questions" id="security-questions" data-show="{{ 'yes' if show_questions else 'no' }}">
+      <legend>A few questions for security</legend>
+      <p class="hint" id="security-hint">Only needed when it uses anything other than public information. Security's rules use your answers to check the request, and "Not sure" is fine.</p>
+
+      <fieldset class="field"{{ described(errors, "sends_without_check", "warn-sends_without_check") }}>
+        <legend id="sends_without_check">{{ QUESTIONS.sends_without_check }}</legend>
+        <div class="choices inline">
+        {% for key, text in YES_NO_NOT_SURE.items() %}
+          <label class="choice"><input type="radio" name="sends_without_check" value="{{ key }}"{% if f.answers.get("sends_without_check") == key %} checked{% endif %}> {{ text }}</label>
+        {% endfor %}
+        </div>
+        {{ warning("sends_without_check") }}
+        {{ field_error(errors, "sends_without_check") }}
+      </fieldset>
+
+      <fieldset class="field"{{ described(errors, "keeps_elsewhere") }}>
+        <legend id="keeps_elsewhere">{{ QUESTIONS.keeps_elsewhere }}</legend>
+        <div class="choices inline">
+        {% for key, text in YES_NO_NOT_SURE.items() %}
+          <label class="choice"><input type="radio" name="keeps_elsewhere" value="{{ key }}"{% if f.answers.get("keeps_elsewhere") == key %} checked{% endif %}> {{ text }}</label>
+        {% endfor %}
+        </div>
+        {{ field_error(errors, "keeps_elsewhere") }}
+      </fieldset>
+
+      <div class="field" style="margin-bottom:0">
+        <label for="ai_service">{{ QUESTIONS.ai_service }}</label>
+        <select id="ai_service" name="ai_service"{{ described(errors, "ai_service") }}>
+          <option value="">Choose a service</option>
+          {% for key, text in RULES.service_choices().items() %}<option value="{{ key }}"{% if f.answers.get("ai_service") == key %} selected{% endif %}>{{ text }}</option>{% endfor %}
+        </select>
+        {{ field_error(errors, "ai_service") }}
+      </div>
     </fieldset>
 
     <div class="field">
@@ -74,7 +118,7 @@
       <button type="submit" class="btn btn-secondary js-hide" name="action" value="check">Check what we have</button>
     </div>
     <p class="muted small" style="margin-top:12px">You'll see the decision, and the reason, on My requests.</p>
-  </form>
+  </div>
 
   <div>
     <section class="card match-panel" id="match-panel" aria-live="polite" aria-busy="false" aria-label="You may already have this">
@@ -83,4 +127,20 @@
     <p class="under-panel">Claude only suggests. A person reviews every request.</p>
   </div>
 </div>
+</form>
+
+<details class="card look-for">
+  <summary>What reviewers look for</summary>
+  <ul>
+    <li><strong>Whether a tool we have already does it.</strong> If one does, you can start using it right away.</li>
+    <li><strong>Whether it would send anything to customers on its own.</strong> Northstar doesn't approve that. A version that drafts for a person to check and send is fine.</li>
+    <li><strong>What information it uses.</strong> Security's rules decide what gets checked:
+      <ul>
+        {% for kind, level in RULES.information.items() %}<li>{{ INFO_KINDS[kind] }}: {{ LEVELS[level]|lower }}.</li>{% endfor %}
+      </ul>
+      Approved AI services: {{ join_words(RULES.service_names.values()|list) }}.
+    </li>
+    <li><strong>Approved tools start as a pilot,</strong> with a named owner and an end date, before they're approved for everyone.</li>
+  </ul>
+</details>
 {% endblock %}

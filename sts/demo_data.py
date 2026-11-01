@@ -39,8 +39,10 @@ from .models import (
     Request,
     Tool,
 )
-from .provider import DraftReason, MatchItem, RelatedDecision, SizeUp
+from .config import ROOT
+from .provider import DraftReason, MatchItem, RelatedDecision, RelatedRequest, SizeUp
 from .rules import add_months, format_month
+from .security import SecurityRules, SecurityRulesError, check_security, load_security_rules
 
 OFFSET_HELP = 'use an offset from today, for example "today", "3 days ago" or "in 2 weeks"'
 UNIT_DAYS = {"day": 1, "week": 7}
@@ -90,7 +92,8 @@ RelDate = Annotated[date, BeforeValidator(_rel_date)]
 # A month written as an offset ("last month", "in 3 months"), loaded as "March 2027".
 RelMonth = Annotated[str, BeforeValidator(_rel_month)]
 
-InfoKind = Literal["customer_contact", "deal_pricing", "internal_notes", "public_only"]
+InfoKind = Literal["customer_contact", "deal_pricing", "internal_notes", "sensitive_personal", "public_only"]
+YesNoNotSure = Literal["yes", "no", "not_sure"]
 
 
 class Strict(BaseModel):
@@ -127,7 +130,7 @@ class ToolIn(Strict):
     link: Optional[str] = None
     replaced_by: Optional[str] = None
     from_request: Optional[str] = None
-    security_check: Optional[Literal["not_needed", "needed", "done"]] = None
+    security_check: Optional[Literal["not_needed", "passed", "needed", "done"]] = None
     trial_extended: bool = False
     ready_check: ReadyCheckIn = ReadyCheckIn()
     journey: list[JourneyIn] = []
@@ -145,7 +148,7 @@ class ChecklistIn(Strict):
     already_exists: Literal["yes", "no"]
     sends_without_check: Literal["yes", "no"]
     uses_customer_details: Literal["yes", "no"]
-    security_check: Literal["not_needed", "needed", "done"]
+    security_check: Literal["not_needed", "passed", "needed", "done"]
 
 
 class DecisionIn(Strict):
@@ -180,6 +183,18 @@ class EventIn(Strict):
     date: RelDate
 
 
+class SecurityAnswersIn(Strict):
+    sends_without_check: YesNoNotSure
+    keeps_elsewhere: YesNoNotSure
+    ai_service: str
+
+
+class NeededByIn(Strict):
+    name: str
+    note: Optional[str] = None
+    date: RelDate
+
+
 class RequestIn(Strict):
     id: str
     title: str
@@ -196,6 +211,8 @@ class RequestIn(Strict):
     copied_from: Optional[str] = None
     questions: list[QuestionIn] = []
     timeline: list[EventIn] = []
+    security_answers: Optional[SecurityAnswersIn] = None
+    needed_by: list[NeededByIn] = []
     decision: Optional[DecisionIn] = None
 
     @field_validator("team")
@@ -211,6 +228,11 @@ class RequestIn(Strict):
             raise ValueError("a decided request needs a decision")
         if self.status != "decided" and self.decision is not None:
             raise ValueError("only a decided request can have a decision")
+        if any(i != "public_only" for i in self.info) and self.security_answers is None:
+            raise ValueError("security_answers is required when info includes anything other than public_only")
+        names = [p.name for p in self.needed_by]
+        if self.requester_name in names or len(set(names)) != len(names):
+            raise ValueError("needed_by lists each person once and never the requester")
         return self
 
 
@@ -230,6 +252,7 @@ class RecordedFile(Strict):
     size_up: SizeUp
     drafts: dict[Literal["approve", "approve_with_limits", "use_existing", "not_approved"], DraftReason] = {}
     related_decision: Optional[RelatedDecision] = None
+    related_request: Optional[RelatedRequest] = None
 
 
 class DemoDataError(ValueError):
@@ -275,9 +298,15 @@ def _at(d: date, hour: int = 10) -> datetime:
     return datetime.combine(d, time(hour, 0))
 
 
-def load_demo_data(demo_dir: Path, today: Optional[date] = None) -> DemoData:
-    """Load the demo files. Offsets are counted from `today` (the real date by default)."""
+def load_demo_data(
+    demo_dir: Path, today: Optional[date] = None, rules: Optional[SecurityRules] = None
+) -> DemoData:
+    """Load the demo files. Offsets are counted from `today` (the real date by default).
+
+    Each request's security check is worked out from security's rules, the same way as live mode.
+    """
     today = today or date.today()
+    rules = rules or load_security_rules(ROOT / "security_rules.yaml")
     ctx = {"today": today}
     demo_dir = Path(demo_dir)
     problems: list[str] = []
@@ -349,6 +378,20 @@ def load_demo_data(demo_dir: Path, today: Optional[date] = None) -> DemoData:
                 f"demo/recorded/{rid}.json, related_decision.request_id: no decided request with id "
                 f"{related['request_id']!r}"
             )
+        related_req = rec.get("related_request")
+        open_ids = {r.id for r in reqs_file.requests if r.status in ("waiting", "in_review")}
+        if related_req and related_req["request_id"] not in open_ids:
+            problems.append(
+                f"demo/recorded/{rid}.json, related_request.request_id: no waiting or in review request with id "
+                f"{related_req['request_id']!r}"
+            )
+    for i, r in enumerate(reqs_file.requests):
+        service = r.security_answers.ai_service if r.security_answers else None
+        if service and service not in rules.service_choices():
+            problems.append(
+                f"{req_name}, requests[{i}].security_answers.ai_service: use one of "
+                + ", ".join(rules.service_choices())
+            )
     if problems:
         raise DemoDataError(problems)
 
@@ -365,9 +408,14 @@ def load_demo_data(demo_dir: Path, today: Optional[date] = None) -> DemoData:
     decisions: list[Decision] = []
     for r in reqs_file.requests:
         rec = recorded[r.id]
-        data = r.model_dump(exclude={"decision", "questions", "timeline", "submitted_at"})
+        data = r.model_dump(exclude={"decision", "questions", "timeline", "submitted_at", "security_answers",
+                                     "needed_by"})
+        answers = r.security_answers.model_dump() if r.security_answers else {}
         req = Request(
             **data,
+            security_answers=answers,
+            security_result=check_security(r.info, answers, rules).as_dict(),
+            needed_by=[n.model_dump(mode="json") for n in r.needed_by],
             submitted_at=_at(r.submitted_at, 9),
             matches=rec["matches"],
             size_up=rec["size_up"],
@@ -396,9 +444,10 @@ def load_demo_data(demo_dir: Path, today: Optional[date] = None) -> DemoData:
     )
 
 
-def check_demo_data(demo_dir: Path) -> list[str]:
+def check_demo_data(demo_dir: Path, rules_path: Optional[Path] = None) -> list[str]:
     try:
-        load_demo_data(demo_dir)
-    except DemoDataError as exc:
+        rules = load_security_rules(rules_path or ROOT / "security_rules.yaml")
+        load_demo_data(demo_dir, rules=rules)
+    except (DemoDataError, SecurityRulesError) as exc:
         return exc.problems
     return []

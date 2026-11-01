@@ -9,7 +9,6 @@
   ],
   "size_up": {
     "title": "Webinar recap emails",
-    "security_check_needed": false,
     "bullets": [
       {
         "label": "Closest match",
@@ -17,7 +16,7 @@
       },
       {
         "label": "Information",
-        "text": "Public webinar content only. No security check needed."
+        "text": "Public webinar content only."
       },
       {
         "label": "Worth asking",

@@ -9,7 +9,6 @@
   ],
   "size_up": {
     "title": "Social posts from case studies",
-    "security_check_needed": false,
     "bullets": [
       {
         "label": "Closest match",
@@ -17,15 +16,15 @@
       },
       {
         "label": "Information",
-        "text": "Customer names and quotes, published on LinkedIn. The content comes from case studies that are already public, so a security check is likely not needed. The Case Study Builder limit on customer quotes should carry over."
+        "text": "Customer names and quotes, published on LinkedIn. The content comes from case studies that are already public. The Case Study Builder limit on customer quotes should carry over."
       },
       {
         "label": "Who sends it",
-        "text": "Unclear. The request doesn't say whether a person posts each one or whether posts go out on a schedule."
+        "text": "Owen answered that a person checks each post before it goes out, though the request doesn't say who on the team does it."
       },
       {
         "label": "Worth asking",
-        "text": "Will someone on the team read and post each draft, or does Owen want posts to publish automatically?"
+        "text": "Who on the team will read and post each draft, and does the customer approve their quote before it goes out?"
       }
     ]
   },
@@ -35,7 +34,7 @@
       "what_would_change": "If every quote in a case study already has written approval on file, we can look at a lighter check."
     },
     "approve": {
-      "reason": "Approved. The posts come from case studies that are already public, and someone on your team will post each one. It starts as being tried with Marketing so we can see how the drafts land.",
+      "reason": "Approved. The posts come from case studies that are already public, and someone on your team will post each one. It starts as a pilot with Marketing so we can see how the drafts land.",
       "what_would_change": "If you want posts to go out on a schedule without a person checking each one, ask again, since that changes the answer."
     },
     "use_existing": {

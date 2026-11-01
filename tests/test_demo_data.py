@@ -16,7 +16,7 @@ def copy_demo(tmp_path):
 def test_demo_data_is_valid():
     assert check_demo_data(DEMO_DIR) == []
     data = load_demo_data(DEMO_DIR)
-    assert len(data.tools) == 9 and len(data.requests) == 8
+    assert len(data.tools) == 9 and len(data.requests) == 9
     assert {d.outcome for d in data.decisions} == {"approve", "approve_with_limits", "use_existing", "not_approved"}
 
 

@@ -14,6 +14,7 @@ requests:
     how_often: few_week
     who_uses: my_team
     info: [customer_contact, deal_pricing]
+    security_answers: {sends_without_check: "no", keeps_elsewhere: "no", ai_service: claude}
     requester_name: Priya Raman
     submitted_at: today
     status: waiting
@@ -33,6 +34,14 @@ requests:
     requester_name: Owen Pratt
     submitted_at: 3 days ago
     status: waiting
+    security_answers: {sends_without_check: "no", keeps_elsewhere: "no", ai_service: claude}
+    needed_by:
+      - name: Tomas Reyes
+        note: We'd use it for partner case studies too.
+        date: 2 days ago
+      - name: Grace Liu
+        note: I'd want a short post for our customer newsletter as well.
+        date: yesterday
     whats_missing: >-
       Case Study Builder writes the case study itself. I need the social posts
       that come after it's published.
@@ -53,8 +62,27 @@ requests:
     requester_name: Nora Lindqvist
     submitted_at: 4 days ago
     status: waiting
+    security_answers: {sends_without_check: "no", keeps_elsewhere: "no", ai_service: not_sure}
+
     timeline:
       - {label: Submitted, date: 4 days ago}
+
+  - id: r-1049
+    title: Answer employee benefits questions
+    task: >-
+      Answer employees' questions about their health plan and leave, using our
+      benefits guides and each person's own enrollment details.
+    team: People
+    how_often: every_day
+    who_uses: several_teams
+    info: [sensitive_personal, internal_notes]
+    extra: We get about 40 benefits questions a week, mostly during open enrollment.
+    requester_name: Ines Duarte
+    submitted_at: yesterday
+    status: waiting
+    security_answers: {sends_without_check: "no", keeps_elsewhere: "no", ai_service: claude}
+    timeline:
+      - {label: Submitted, date: yesterday}
 
   - id: r-1045
     title: Partner one-pager drafts
@@ -65,6 +93,7 @@ requests:
     how_often: few_month
     who_uses: several_teams
     info: [internal_notes, public_only]
+    security_answers: {sends_without_check: "no", keeps_elsewhere: "no", ai_service: claude}
     requester_name: Priya Raman
     submitted_at: 6 days ago
     status: in_review
@@ -82,6 +111,7 @@ requests:
     who_uses: several_teams
     info: [customer_contact]
     extra: Right now replies can take a day, and we lose people in that gap.
+    security_answers: {sends_without_check: "yes", keeps_elsewhere: "no", ai_service: claude}
     requester_name: Priya Raman
     submitted_at: 13 days ago
     status: decided
@@ -140,9 +170,9 @@ requests:
         uses_customer_details: "no"
         security_check: not_needed
       reason: >-
-        Translation Helper is already being tried by International Marketing
+        Translation Helper is already in pilot with International Marketing
         and handles public pages like help center articles. Ana Ferreira has
-        added Support to the trial, so you can start using it this week.
+        added Support to the pilot, so you can start using it this week.
       what_would_change: >-
         If help center translations need a glossary of Connect terms the tool
         can't follow, tell us and we'll look at a separate version.
@@ -195,6 +225,7 @@ requests:
     how_often: few_week
     who_uses: several_teams
     info: [customer_contact, deal_pricing]
+    security_answers: {sends_without_check: "no", keeps_elsewhere: "not_sure", ai_service: claude}
     requester_name: Carlos Mendes
     submitted_at: 147 days ago
     status: decided

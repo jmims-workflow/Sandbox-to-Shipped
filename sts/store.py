@@ -21,7 +21,8 @@ from .models import CUSTOMER_INFO, Decision, Request, Tool
 
 JSON_FIELDS = {
     Tool: ("teams", "allowed_info", "ready_check", "journey"),
-    Request: ("info", "matches", "size_up", "questions", "timeline", "draft"),
+    Request: ("info", "matches", "size_up", "questions", "timeline", "draft", "security_answers",
+              "security_result", "needed_by"),
     Decision: ("checklist",),
 }
 
@@ -72,7 +73,7 @@ def upgraded_security(tool: Tool, decision: Optional[Decision]) -> str:
     """For a tool saved before the security check was kept on tools."""
     if decision is not None:
         value = (decision.checklist or {}).get("security_check")
-        if value in ("not_needed", "needed", "done"):
+        if value in ("not_needed", "passed", "needed", "done"):
             return value
     # Nothing recorded: a tool that uses customer details needs the check recorded.
     return "needed" if set(tool.allowed_info or []) & CUSTOMER_INFO else "not_needed"
@@ -121,18 +122,36 @@ class LiveStore:
         "ready_check": "JSON",
         "journey": "JSON",
     }
+    NEW_REQUEST_COLUMNS = {
+        "security_answers": "JSON",
+        "security_result": "JSON",
+        "needed_by": "JSON",
+    }
 
     def upgrade(self) -> None:
         """Bring a database from an earlier version up to date without losing data.
 
         create_all() adds missing tables but not missing columns, so new columns are
         added here. Tools without a journey get one built from what is already known.
+        Requests saved before the automatic security check keep no result, and the
+        reviewer checklist falls back to the earlier read for them.
         """
+        added: list[str] = []
         with self.engine.begin() as conn:
-            have = {row[1] for row in conn.execute(text("PRAGMA table_info(tool)"))}
-            added = [name for name in self.NEW_TOOL_COLUMNS if name not in have]
-            for name in added:
-                conn.execute(text(f"ALTER TABLE tool ADD COLUMN {name} {self.NEW_TOOL_COLUMNS[name]}"))
+            for table, columns in (("tool", self.NEW_TOOL_COLUMNS), ("request", self.NEW_REQUEST_COLUMNS)):
+                have = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
+                for name in columns:
+                    if name not in have:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {columns[name]}"))
+                        if table == "tool":
+                            added.append(name)
+        with self._session() as s:
+            old_requests = [r for r in s.exec(select(Request)) if r.needed_by is None or r.security_answers is None]
+        for r in old_requests:
+            r.needed_by = r.needed_by or []
+            r.security_answers = r.security_answers or {}
+        if old_requests:
+            self.save(*old_requests)
         with self._session() as s:
             tools = list(s.exec(select(Tool)))
             if not any(t.journey is None or t.ready_check is None for t in tools):

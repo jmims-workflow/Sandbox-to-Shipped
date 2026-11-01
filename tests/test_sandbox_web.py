@@ -11,6 +11,7 @@ from .conftest import as_requester, as_reviewer, visible_text
 
 TODAY = date.today()
 SANDBOX = "Being tried is the sandbox: a small group uses it, with an end date, before it&#39;s shipped to everyone."
+SANDBOX_TEXT = "Being tried is the sandbox"
 REQUESTER_NAMES = ["Priya Raman", "Mei Tanaka", "Carlos Mendes", "Owen Pratt", "Nora Lindqvist"]
 GOOD_ANSWERS = {"kept_using": "regularly", "went_wrong": "Nothing", "how_tested": "Ran it on ten real pages."}
 
@@ -43,19 +44,19 @@ def test_translation_helper_shows_2_of_4_ready_with_ship_it_disabled(demo_client
                  "How it was tested"]:
         assert item in text
     assert html.count("<span>Not done</span>") == 2 and html.count("<span>Done</span>") == 2
-    assert f"Trial ends {long_date(TODAY + timedelta(days=14))}" in html
-    assert SANDBOX in html
+    assert f"Pilot ends {long_date(TODAY + timedelta(days=14))}" in html
+    assert SANDBOX_TEXT not in html
 
 
 def test_partner_outreach_is_3_of_4_and_needs_a_decision(demo_client):
     as_reviewer(demo_client)
     html = demo_client.get("/tools/partner-outreach-drafts").text
     assert "3 of 4 ready" in html and "disabled" in ship_button(html)
-    assert "label-trial-ended" in html and "Trial ended" in html
+    assert "label-trial-ended" in html and "Pilot ended" in html
     review = demo_client.get("/review").text
     card = review[review.index("Needs a decision"):review.index("Requests to review")]
-    assert "Partner Outreach Drafts" in card and "Trial ended" in card
-    assert "Being tried by Partnerships. Trial ended 3 days ago." in card
+    assert "Partner Outreach Drafts" in card and "Pilot ended" in card
+    assert "In pilot with Partnerships. Pilot ended 3 days ago." in card
     assert 'href="/tools/partner-outreach-drafts"' in card
 
 
@@ -89,7 +90,7 @@ def test_webinar_invite_writer_shows_its_journey_and_how_it_earned_approval(demo
     journey = html[html.index("Its journey"):]
     assert '<ol class="timeline journey">' in journey
     steps = re.findall(r"<li>\s*<strong>([^<]+)</strong>", journey)
-    assert steps == ["Requested", "Started being tried", "Shipped"]
+    assert steps == ["Requested", "Pilot started", "Shipped"]
     assert 'href="/decided?q=Webinar%20recap%20emails#decision-r-1041"' in journey
     assert long_date(TODAY - timedelta(days=97)) in journey and long_date(TODAY - timedelta(days=48)) in journey
     assert "By Field Marketing, for six weeks." in journey
@@ -116,20 +117,24 @@ def test_every_demo_tool_has_a_journey(demo_client):
         assert '<ol class="timeline journey">' in html
 
 
-def test_inventory_names_the_sandbox_under_the_status_filter(demo_client):
-    html = demo_client.get("/tools").text
-    status = html.index('id="status"')
-    assert html.index(SANDBOX) > status
-    assert 'aria-describedby="sandbox-hint"' in html
+def test_the_sandbox_line_is_gone_everywhere(demo_client):
+    for viewer in ("requester", "reviewer"):
+        demo_client.cookies.set("sts_viewer", viewer)
+        for page in ("/tools", "/tools/translation-helper", "/tools/partner-outreach-drafts", "/how-it-works"):
+            html = demo_client.get(page).text
+            assert SANDBOX_TEXT not in html and "sandbox-hint" not in html, page
+    filters = demo_client.get("/tools").text
+    assert '<option value="being_tried">In pilot</option>' in filters
 
 
 def test_how_it_works_shows_the_new_path_and_principle(demo_client):
     text = text_of(demo_client.get("/how-it-works").text)
-    path = ["Request", "Check what exists", "Reviewer decides", "Being tried the sandbox", "Ready to ship check",
-            "Approved"]
-    positions = [text.index(step) for step in path]
-    assert positions == sorted(positions)
-    assert "every tool starts in the sandbox and is shipped only when it has earned it" in text
+    flow = text[text.index("The path a request takes"):]
+    steps = re.findall(r'<span class="step[^"]*">(.*?)</span><span class="arrow">|<span class="step approved">(.*?)</span>',
+                       demo_client.get("/how-it-works").text)
+    labels = [" ".join(re.sub(r"<[^>]+>", " ", a or b).split()) for a, b in steps]
+    assert labels == ["Request", "Check what exists", "Reviewer decides", "Pilot", "Ready to ship check", "Approved"]
+    assert "the sandbox" not in flow and "Why the name" not in text
     assert "Shipped means it earned it." in text
     assert text.index("Owners agree to be owners.") < text.index("Shipped means it earned it.")
 
@@ -139,22 +144,22 @@ def test_badge_counts_waiting_requests_plus_tools_that_need_a_decision(demo_clie
     store = demo_client.app.state.store
     waiting = sum(r.status == "waiting" for r in store.list_requests())
     html = demo_client.get("/review").text
-    assert waiting == 3
+    assert waiting == 4
     assert re.findall(r'class="badge"[^>]*>(\d+)<', html)[0] == str(waiting + 2)
-    assert 'aria-label="5 waiting or needing a decision"' in html
+    assert 'aria-label="6 waiting or needing a decision"' in html
 
 
 def test_demo_disables_every_tool_change_but_still_shows_the_check(demo_client):
     as_reviewer(demo_client)
     for tool_id in ("translation-helper", "proposal-drafter"):
         html = demo_client.get(f"/tools/{tool_id}").text
-        for name in ("Ship it", "Extend the trial", "Retire", "Mark reviewed", "Save answers"):
+        for name in ("Ship it", "Extend the pilot", "Retire", "Mark reviewed", "Save answers"):
             button = re.search(rf"<button[^>]*>{name}</button>", html)
             if button:
                 assert "disabled" in button.group(0), (tool_id, name)
         assert "Demo mode doesn&#39;t save changes to tools." in html
     html = demo_client.get("/tools/translation-helper").text
-    assert "2 of 4 ready" in html and "Extend the trial</button>" in html and "Retire</button>" in html
+    assert "2 of 4 ready" in html and "Extend the pilot</button>" in html and "Retire</button>" in html
     posts = {
         "translation-helper": [("ship", {"to_status": "approved"}), ("extend", {"new_end": TODAY.isoformat()}),
                                ("retire", {"retire_reason": "x"}), ("check", GOOD_ANSWERS),
@@ -243,9 +248,9 @@ def test_live_stopped_team_hides_the_approval_options(live_app, live_client):
     live_client.post("/tools/translation-helper/check", data={
         "kept_using": "stopped", "went_wrong": "Nobody used it after the first week.", "how_tested": "Five pages."})
     html = live_client.get("/tools/translation-helper").text
-    assert "A tool the team stopped using isn&#39;t ready to ship. Extend the trial or retire it." in html
+    assert "A tool the team stopped using isn&#39;t ready to ship. Extend the pilot or retire it." in html
     assert 'value="approved"' not in html and 'value="approved_with_limits"' not in html
-    assert "Extend the trial</button>" in html and "Retire</button>" in html
+    assert "Extend the pilot</button>" in html and "Retire</button>" in html
     r = live_client.post("/tools/translation-helper/ship", data={"to_status": "approved"})
     assert r.status_code == 400
     assert store.get_tool("translation-helper").status == "being_tried"
@@ -337,12 +342,12 @@ def test_badge_counts_live(live_app, live_client):
     store = seed(live_app)
     as_reviewer(live_client)
     html = live_client.get("/review").text
-    assert re.findall(r'class="badge"[^>]*>(\d+)<', html)[0] == "5"
+    assert re.findall(r'class="badge"[^>]*>(\d+)<', html)[0] == "6"
     tool = store.get_tool("partner-outreach-drafts")
     tool.trial_ends = date.today()  # Ends today: not ended yet.
     store.save(tool)
     html = live_client.get("/review").text
-    assert re.findall(r'class="badge"[^>]*>(\d+)<', html)[0] == "4"
+    assert re.findall(r'class="badge"[^>]*>(\d+)<', html)[0] == "5"
 
 
 def test_edit_checks_the_next_review_month(live_app, live_client):

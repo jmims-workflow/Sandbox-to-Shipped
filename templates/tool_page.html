@@ -2,7 +2,7 @@
 {% from "macros.html" import icon, label, flag_labels, field_error, described, security_text, ready_answers %}
 {% block title %}{{ t.name }} | {% endblock %}
 {% block content %}
-{% set demo = mode == "demo" %}
+{% set demo = read_only %}
 {% set has_answers = rc.kept_using or rc.how_tested %}
 <a class="back-link" href="/tools">{{ icon("back", 18) }}Tool inventory</a>
 <div class="list-item" style="margin-bottom:8px"><h1 style="margin:0">{{ t.name }}</h1><span class="label-row">{{ label(t.status) }}{{ flag_labels(flags, viewer) }}</span></div>
@@ -12,8 +12,11 @@
 <div class="sandbox-note">
   {{ icon("flask", 20) }}
   <div>
-    <p>{{ SANDBOX_LINE }}</p>
-    <p><strong>Trial ends {{ t.trial_ends|date }}</strong>{% if "trial_ended" in flags %}. That date has passed, so a reviewer needs to ship it, extend the trial or retire it.{% endif %}</p>
+    {% if "trial_ended" in flags %}
+    <p><strong>Pilot ended {{ t.trial_ends|date }}</strong>. A reviewer needs to ship it, extend the pilot or retire it.</p>
+    {% else %}
+    <p><strong>Pilot ends {{ t.trial_ends|date }}</strong></p>
+    {% endif %}
   </div>
 </div>
 {% endif %}
@@ -23,7 +26,7 @@
 {% if changed == "edited" %}<p class="notice notice-ok" role="status">Changes saved.</p>{% endif %}
 {% if changed == "checked" %}<p class="notice notice-ok" role="status">Answers saved.</p>{% endif %}
 {% if changed == "security" %}<p class="notice notice-ok" role="status">Security check recorded.</p>{% endif %}
-{% if changed == "extended" %}<p class="notice notice-ok" role="status">Trial extended to {{ t.trial_ends|date }}.</p>{% endif %}
+{% if changed == "extended" %}<p class="notice notice-ok" role="status">Pilot extended to {{ t.trial_ends|date }}.</p>{% endif %}
 {% if changed == "reviewed" %}<p class="notice notice-ok" role="status">Marked as reviewed. Next review {{ t.next_review }}.</p>{% endif %}
 {% if error %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endif %}
 
@@ -32,7 +35,7 @@
     <section class="card" aria-labelledby="about-h">
       <h2 id="about-h">About this tool</h2>
       <dl class="facts">
-        <div><dt>Status</dt><dd>{{ TOOL_STATUSES[t.status] }}{% if t.status == "being_tried" %}, by {{ join_words(t.teams) }} until {{ t.trial_ends|date }}{% endif %}</dd></div>
+        <div><dt>Status</dt><dd>{{ TOOL_STATUSES[t.status] }}{% if t.status == "being_tried" %} with {{ join_words(t.teams) }} until {{ t.trial_ends|date }}{% endif %}</dd></div>
         <div><dt>Okay to use with</dt><dd>{% for i in t.allowed_info %}{{ INFO_KINDS[i] }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd></div>
         {% if t.limits %}<div><dt>Limit</dt><dd>{{ t.limits }}</dd></div>{% endif %}
         <div><dt>Owner</dt><dd>{{ t.owner_name }}, {{ t.owner_team }}. Ask them about this tool.</dd></div>
@@ -91,7 +94,7 @@
 
       <form method="post" action="/tools/{{ t.id }}/check" class="subform" novalidate>
         <fieldset class="plain">
-          <legend>How the trial went</legend>
+          <legend>How the pilot went</legend>
           <fieldset class="field"{{ described(errors, "kept_using") }}>
             <legend id="kept_using">Did the team keep using it?</legend>
             {% set kept = posted.get("kept_using", rc.kept_using) %}
@@ -129,7 +132,7 @@
         <fieldset class="plain">
           <legend>Ship it</legend>
           <fieldset class="field"{{ described(errors, "to_status") }}>
-            <legend id="to_status">Move from being tried to</legend>
+            <legend id="to_status">Move from pilot to</legend>
             <div class="choices">
               <label class="choice"><input type="radio" name="to_status" value="approved"{% if posted.to_status != "approved_with_limits" %} checked{% endif %}> Approved</label>
               <label class="choice"><input type="radio" name="to_status" value="approved_with_limits"{% if posted.to_status == "approved_with_limits" %} checked{% endif %}> Approved with limits</label>
@@ -158,17 +161,17 @@
       {% if t.status == "being_tried" %}
       <form method="post" action="/tools/{{ t.id }}/extend" class="subform" novalidate>
         <fieldset class="plain">
-          <legend>Extend the trial</legend>
+          <legend>Extend the pilot</legend>
           {% if t.trial_extended %}
-          <p style="margin:0">This trial was already extended once. Ship it or retire it.</p>
+          <p style="margin:0">This pilot was already extended once. Ship it or retire it.</p>
           {% else %}
           <div class="field">
             <label for="new_end">New end date</label>
-            <p class="hint" id="new_end-hint">A trial can be extended once, to no later than {{ latest_extension|date }}.</p>
+            <p class="hint" id="new_end-hint">A pilot can be extended once, to no later than {{ latest_extension|date }}.</p>
             <input type="date" id="new_end" name="new_end" min="{{ (t.trial_ends if t.trial_ends > today else today).isoformat() }}" max="{{ latest_extension.isoformat() }}" value="{{ posted.new_end or '' }}"{{ described(errors, "new_end", "new_end-hint") }}>
             {{ field_error(errors, "new_end") }}
           </div>
-          <button type="submit" class="btn btn-secondary"{% if demo %} disabled aria-describedby="manage-demo"{% endif %}>Extend the trial</button>
+          <button type="submit" class="btn btn-secondary"{% if demo %} disabled aria-describedby="manage-demo"{% endif %}>Extend the pilot</button>
           {% endif %}
         </fieldset>
       </form>

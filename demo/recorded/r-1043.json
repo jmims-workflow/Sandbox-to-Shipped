@@ -3,7 +3,6 @@
   "matches": [],
   "size_up": {
     "title": "Proposal pricing from deal notes",
-    "security_check_needed": true,
     "bullets": [
       {
         "label": "Closest match",
@@ -11,7 +10,7 @@
       },
       {
         "label": "Information",
-        "text": "Customer details and deal pricing, including discounts. A security check is needed."
+        "text": "Customer details and deal pricing, including discounts. A wrong price would reach the customer in the proposal."
       },
       {
         "label": "Main risk",
