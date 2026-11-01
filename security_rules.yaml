@@ -1,0 +1,26 @@
+# Northstar Systems security rules for AI tool requests.
+#
+# Owned by the Northstar security team. Change this file only with their OK.
+# The app checks it when it starts and refuses to start if something is wrong,
+# with a message that names the line to fix.
+#
+# Plain code applies these rules to every request. Claude is not involved.
+
+# AI services security has approved. A request that names one of these, and
+# answers No to the other two questions, can pass the check automatically.
+approved_services:
+  - id: claude
+    name: Claude (by Anthropic)
+  - id: meridian
+    name: Meridian Assist (Northstar's private instance)
+
+# For each kind of information, how the security check works:
+#   none:      no security check
+#   automatic: checked automatically against these rules
+#   person:    always reviewed by a person on the security team
+information:
+  public_only: none
+  internal_notes: automatic
+  customer_contact: automatic
+  deal_pricing: automatic
+  sensitive_personal: person

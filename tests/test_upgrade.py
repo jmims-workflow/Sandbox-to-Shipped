@@ -73,6 +73,10 @@ def test_startup_upgrade_keeps_existing_data_and_builds_journeys(tmp_path):
 
     cols = {row[1] for row in sqlite3.connect(data_dir / "sts.db").execute("PRAGMA table_info(tool)")}
     assert {"security_check", "trial_extended", "ready_check", "journey"} <= cols
+    req_cols = {row[1] for row in sqlite3.connect(data_dir / "sts.db").execute("PRAGMA table_info(request)")}
+    assert {"security_answers", "security_result", "needed_by"} <= req_cols
+    old = store.get_request("r-2001")
+    assert old.needed_by == [] and old.security_answers == {} and old.security_result is None
 
     tools = {t.id: t for t in store.list_tools()}
     assert set(tools) == {"recap-tool", "notes-helper", "old-drafter", "gone-tool"}
@@ -125,3 +129,5 @@ def test_upgraded_database_works_in_the_app(tmp_path):
     review = c.get("/review").text
     assert "Notes Helper" in review and "Old Drafter" in review  # Trial ended and Review due
     assert c.get("/tools/old-drafter").status_code == 200
+    # A request saved before the automatic security check still opens for reviewers.
+    assert c.get("/review/r-2001").status_code == 200

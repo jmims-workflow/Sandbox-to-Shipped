@@ -32,9 +32,14 @@ from .models import (
     Request,
     Tool,
 )
-from .provider import ClaudeProvider, ClaudeUnavailable, DemoProvider
+from .provider import MSG_LIMITED, CallLimiter, ClaudeProvider, ClaudeUnavailable, DemoProvider, PreviewProvider
 from .rules import (
     MSG_STOPPED,
+    OPEN_STATUSES,
+    RequestChangeError,
+    add_needed_by,
+    auto_security,
+    needed_by_count,
     READY_TOTAL,
     REVIEW_MONTHS,
     Checklist,
@@ -64,12 +69,39 @@ from .rules import (
     validate_decision,
     warnings_for,
 )
+from .security import (
+    LEVELS,
+    QUESTIONS,
+    RESULTS,
+    WARN_SENDS,
+    WARN_SENSITIVE,
+    YES_NO_NOT_SURE,
+    answer_errors,
+    answer_text,
+    check_security,
+    clean_answers,
+    early_warnings,
+    load_security_rules,
+    needs_questions,
+)
 from .store import DemoStore, LiveStore
 
 DEMO_READONLY = "Demo mode doesn't save anything. Run in live mode to send real decisions."
 TOOL_READONLY = "Demo mode doesn't save changes to tools."
 ASK_READONLY = "Demo mode doesn't save questions."
-SANDBOX_LINE = "Being tried is the sandbox: a small group uses it, with an end date, before it's shipped to everyone."
+NEED_READONLY = "Demo mode doesn't save anything. In live mode, this adds you to that request instead of starting a new one."
+# Live preview saves nothing either. Its lines say so in its own words.
+READONLY_LINES = {
+    "demo": {"DEMO_READONLY": DEMO_READONLY, "TOOL_READONLY": TOOL_READONLY, "ASK_READONLY": ASK_READONLY,
+             "NEED_READONLY": NEED_READONLY},
+    "preview": {
+        "DEMO_READONLY": "The live preview doesn't save anything. Run in live mode to send real decisions.",
+        "TOOL_READONLY": "The live preview doesn't save changes to tools.",
+        "ASK_READONLY": "The live preview doesn't save questions.",
+        "NEED_READONLY": "The live preview doesn't save anything. In live mode, this adds you to that request "
+                         "instead of starting a new one.",
+    },
+}
 
 
 # ---- Small helpers used by templates ----------------------------------------------
@@ -110,19 +142,30 @@ def join_words(items: list[str]) -> str:
 def create_app(settings: Optional[Settings] = None, provider: Any = None) -> FastAPI:
     """Build the app. Tests may pass a provider; otherwise the mode picks one."""
     settings = settings or Settings.from_env()
-    demo = load_demo_data(settings.demo_dir)
+    # Security's rules are checked at startup. A problem stops the app with a message naming the line.
+    rules = load_security_rules(settings.security_rules_path)
+    demo = load_demo_data(settings.demo_dir, rules=rules)
+    demo_provider = DemoProvider(demo.recorded, demo.requests)
+    limiter = None
     if settings.is_live:
         store: Any = LiveStore(settings.data_dir)
         provider = provider or ClaudeProvider(settings.api_key, settings.model)
+    elif settings.is_preview:
+        # Real Claude for three features, nothing saved, within the daily and per-visitor limits.
+        store = DemoStore(demo)
+        limiter = CallLimiter(settings.daily_claude_calls, settings.visitor_claude_calls_per_hour)
+        provider = PreviewProvider(provider or ClaudeProvider(settings.api_key, settings.model), demo_provider, limiter)
     else:
         store = DemoStore(demo)
-        provider = DemoProvider(demo.recorded, demo.requests)
+        provider = demo_provider
 
     app = FastAPI(title=APP_NAME, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.store = store
     app.state.provider = provider
     app.state.demo = demo
+    app.state.rules = rules
+    app.state.limiter = limiter
     app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
     templates = Jinja2Templates(directory=ROOT / "templates")
     env = templates.env
@@ -143,10 +186,18 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         JOURNEY_EVENTS=JOURNEY_EVENTS,
         READY_TOTAL=READY_TOTAL,
         MSG_STOPPED=MSG_STOPPED,
-        SANDBOX_LINE=SANDBOX_LINE,
-        DEMO_READONLY=DEMO_READONLY,
-        TOOL_READONLY=TOOL_READONLY,
-        ASK_READONLY=ASK_READONLY,
+        MSG_LIMITED=MSG_LIMITED,
+        **READONLY_LINES["preview" if settings.is_preview else "demo"],
+        RULES=rules,
+        LEVELS=LEVELS,
+        QUESTIONS=QUESTIONS,
+        YES_NO_NOT_SURE=YES_NO_NOT_SURE,
+        SECURITY_RESULTS=RESULTS,
+        WARN_SENDS=WARN_SENDS,
+        WARN_SENSITIVE=WARN_SENSITIVE,
+        REVIEW_DAYS=settings.review_days,
+        answer_text=lambda q, v: answer_text(q, v, rules),
+        needed_by_count=needed_by_count,
         join_words=join_words,
         tool_flags=lambda t: tool_flags(t, store.now().date()),
     )
@@ -180,11 +231,37 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         """Waiting requests plus tools that need a decision."""
         return waiting_count() + len(needs_decision(store.list_tools(), store.now().date()))
 
+    def visitor_address(req: HTTPRequest) -> str:
+        """The visitor's address, used only to make a hashed key for the preview limit."""
+        forwarded = req.headers.get("x-forwarded-for", "")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return req.client.host if req.client else ""
+
+    def prov(req: HTTPRequest):
+        """The provider for this visitor. In live preview it is bound to a hashed visitor key."""
+        if hasattr(provider, "for_visitor"):
+            return provider.for_visitor(limiter.visitor_key(visitor_address(req)))
+        return provider
+
+    def base_ctx(req: HTTPRequest) -> dict:
+        return dict(
+            settings=settings,
+            mode=settings.mode,
+            read_only=store.read_only,
+            fell_back=settings.fell_back,
+            requested_mode=settings.requested_mode,
+            viewer=viewer(req),
+            path=req.url.path,
+        )
+
     def render(req: HTTPRequest, name: str, current: str, status_code: int = 200, **ctx):
         base = dict(
             settings=settings,
             mode=settings.mode,
+            read_only=store.read_only,
             fell_back=settings.fell_back,
+            requested_mode=settings.requested_mode,
             viewer=viewer(req),
             current=current,
             waiting_count=waiting_count(),
@@ -256,15 +333,31 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
     # ---- Request a tool ---------------------------------------------------------------
 
     def empty_form() -> dict:
-        return dict(task="", team="", how_often="", who_uses="", info=[], extra="", whats_missing="", copied_from="")
+        return dict(task="", team="", how_often="", who_uses="", info=[], extra="", whats_missing="", copied_from="",
+                    answers={}, need_note="")
 
     def example_form() -> dict:
         ex = next((r for r in demo.requests if r.id == demo.example_request_id), None)
         if not ex:
             return empty_form()
         f = empty_form()
-        f.update(task=ex.task, team=ex.team, how_often=ex.how_often, who_uses=ex.who_uses, info=list(ex.info))
+        f.update(task=ex.task, team=ex.team, how_often=ex.how_often, who_uses=ex.who_uses, info=list(ex.info),
+                 answers=dict(ex.security_answers or {}))
         return f
+
+    def open_requests(name: str) -> list[dict]:
+        """Requests still waiting or in review, for "I need this too". Never includes who asked.
+
+        The person's own requests, and requests they are already on, are left out.
+        """
+        out = []
+        for r in sorted(store.list_requests(), key=lambda r: r.submitted_at, reverse=True):
+            if r.status not in OPEN_STATUSES or r.requester_name == name:
+                continue
+            if any(p.get("name") == name for p in r.needed_by or []):
+                continue
+            out.append({"id": r.id, "title": r.title, "task": r.task})
+        return out[:40]
 
     def past_decisions() -> list[dict]:
         """Decided requests for Asked before. Never includes who asked."""
@@ -278,20 +371,28 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
                         "reason": d.reason, "what_would_change": d.what_would_change})
         return out[:40]
 
-    def check_matches(task: str, info: list[str]) -> dict:
-        """Run the existing-tool check. Returns matches with their tools, the source and any related decision."""
+    def check_matches(task: str, info: list[str], req: HTTPRequest, p: Any = None) -> dict:
+        """Run the existing-tool check. Returns matches with their tools, the source, any related
+        decision (Asked before) and any related request still in review (I need this too)."""
+        p = p or prov(req)
         inventory = store.list_tools()
         past = past_decisions()
+        others = open_requests(display_name(req, "requester"))
         error = ""
-        related = None
+        related = related_req = None
         try:
-            outcome = provider.find_matches(task, info, inventory, past)
+            outcome = p.find_matches(task, info, inventory, past, others)
             matches, source = clean_matches(outcome.matches, inventory), outcome.source
             related = clean_related(outcome.related, past)
+            related_req = clean_related(outcome.related_request, others)
         except ClaudeUnavailable:
             matches, source = [], "claude"
             error = "Claude couldn't check the inventory just now. You can still submit, and a reviewer will check."
         tools = {t.id: t for t in inventory}
+        in_review = None
+        if related_req and (other := store.get_request(related_req["request_id"])):
+            # Only the title and status. Never who asked or who else is on it.
+            in_review = {"id": other.id, "title": other.title, "status": other.status, "why": related_req["reason"]}
         asked_before = None
         if related:
             d = next(p for p in past if p["id"] == related["request_id"])
@@ -305,6 +406,8 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             "error": error,
             "checked": bool(task.strip()),
             "asked_before": asked_before,
+            "in_review": in_review,
+            "limited": bool(getattr(p, "limited", False)),
         }
 
     def read_request_form(form) -> dict:
@@ -312,6 +415,8 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         for key in ("task", "team", "how_often", "who_uses", "extra", "whats_missing", "copied_from"):
             f[key] = str(form.get(key) or "").strip()
         f["info"] = [i for i in form.getlist("info") if i in INFO_KINDS]
+        f["answers"] = clean_answers(form, f["info"], rules)
+        f["need_note"] = str(form.get("need_note") or "").strip()
         return f
 
     def validate_request_form(f: dict) -> dict[str, str]:
@@ -326,6 +431,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             errors["who_uses"] = "Choose who would use it."
         if not f["info"]:
             errors["info"] = "Check at least one kind of information. Not sure? Check it anyway."
+        errors.update(answer_errors(f["info"], f["answers"], rules))
         for key, label in (
             ("task", "What you're trying to do"),
             ("extra", "Anything else"),
@@ -335,6 +441,14 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             if msg:
                 errors[key] = msg
         return errors
+
+    def form_page(req: HTTPRequest, f: dict, errors: dict, panel: Optional[dict], notice: str = "",
+                  status_code: int = 200, need_error: str = ""):
+        return render(
+            req, "request_form.html", "request", status_code=status_code, f=f, errors=errors, panel=panel,
+            notice=notice, warnings=early_warnings(f["info"], f["answers"]),
+            show_questions=needs_questions(f["info"], rules), need_error=need_error,
+        )
 
     @app.get("/", response_class=HTMLResponse)
     def request_form(req: HTTPRequest):
@@ -348,8 +462,10 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             f = example_form()
         else:
             f = empty_form()
-        panel = check_matches(f["task"], f["info"]) if f["task"] else None
-        return render(req, "request_form.html", "request", f=f, errors={}, panel=panel, notice=notice)
+        # Opening the page uses the recorded results in live preview, so page views don't use up Claude calls.
+        panel = check_matches(f["task"], f["info"], req, demo_provider if settings.is_preview else None) \
+            if f["task"] else None
+        return form_page(req, f, {}, panel, notice)
 
     @app.post("/", response_class=HTMLResponse)
     async def request_submit(req: HTTPRequest):
@@ -361,15 +477,13 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             msg = too_long_message("What you're trying to do", f["task"])
             if msg:
                 errors["task"] = msg
-            panel = check_matches(f["task"], f["info"]) if f["task"] and not errors else None
-            return render(req, "request_form.html", "request", f=f, errors=errors, panel=panel, notice="")
+            panel = check_matches(f["task"], f["info"], req) if f["task"] and not errors else None
+            return form_page(req, f, errors, panel)
 
         errors = validate_request_form(f)
         if errors:
-            panel = check_matches(f["task"], f["info"]) if f["task"] and "task" not in errors else None
-            return render(
-                req, "request_form.html", "request", status_code=400, f=f, errors=errors, panel=panel, notice=""
-            )
+            panel = check_matches(f["task"], f["info"], req) if f["task"] and "task" not in errors else None
+            return form_page(req, f, errors, panel, status_code=400)
 
         inventory = store.list_tools()
         seen = True
@@ -377,9 +491,10 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             shown = json.loads(str(form.get("matches_json") or "null"))
         except json.JSONDecodeError:
             shown = None
+        p = prov(req)
         if shown is None:
             seen = False
-            shown = check_matches(f["task"], f["info"])["raw"]
+            shown = check_matches(f["task"], f["info"], req, p)["raw"]
         matches = clean_matches(shown, inventory)
 
         now = store.now()
@@ -400,6 +515,10 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             matches_seen=seen,
             copied_from=f["copied_from"] or None,
             timeline=[{"label": "Submitted", "date": now.date().isoformat()}],
+            security_answers=f["answers"],
+            # The automatic security check: security's rules applied in code. Claude is not involved.
+            security_result=check_security(f["info"], f["answers"], rules).as_dict(),
+            needed_by=[],
         )
         recent = [
             {"outcome": d.outcome, "reason": d.reason, "what_would_change": d.what_would_change}
@@ -407,7 +526,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         ]
         size_up_error = ""
         try:
-            request.size_up = provider.size_up(request, inventory, recent)
+            request.size_up = p.size_up(request, inventory, recent)
             request.title = request.size_up.get("title") or ""
         except ClaudeUnavailable:
             size_up_error = "Claude couldn't size up this request just now. A reviewer will read it as is."
@@ -416,7 +535,10 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             request.title = " ".join(words[:6]) + ("..." if len(words) > 6 else "")
 
         if store.read_only:
-            demo_source = "recorded" if provider.recorded_for_task(request.task) else "rules"
+            if getattr(p, "used_claude", False) and not getattr(p, "limited", False):
+                source = "claude"
+            else:
+                source = "recorded" if p.recorded_for_task(request.task) else "rules"
             return render(
                 req,
                 "what_next.html",
@@ -424,7 +546,9 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
                 r=request,
                 tools=tool_map(),
                 saw_line=saw_line(request, tool_map()),
-                size_up_source=demo_source,
+                size_up_source=source,
+                limited=bool(getattr(p, "limited", False)),
+                claude_read_label="Only reviewers see this",
             )
         store.save(request)
         target = f"/requests/{request.id}?submitted=1"
@@ -440,13 +564,34 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         whats_missing = str(form.get("whats_missing") or "")
         if too_long_message("x", task):
             return HTMLResponse("", status_code=400)
-        panel = check_matches(task, info) if task else None
-        return templates.TemplateResponse(
-            req,
-            "partials/match_panel.html",
-            {"panel": panel, "f": {"whats_missing": whats_missing}, "errors": {}, "mode": settings.mode,
-             "OUTCOMES": OUTCOMES},
-        )
+        panel = check_matches(task, info, req) if task else None
+        ctx = base_ctx(req)
+        ctx.update(panel=panel, f={"whats_missing": whats_missing, "need_note": str(form.get("need_note") or "")},
+                   errors={}, need_error="")
+        return templates.TemplateResponse(req, "partials/match_panel.html", ctx)
+
+    @app.post("/requests/{request_id}/need-too", response_class=HTMLResponse)
+    async def need_too(req: HTTPRequest, request_id: str):
+        """I need this too: add this person to a request still in review instead of starting a new one."""
+        form = await req.form()
+        f = read_request_form(form)
+        r = store.get_request(request_id)
+        error = ""
+        if store.read_only:
+            error = READONLY_LINES["preview" if settings.is_preview else "demo"]["NEED_READONLY"]
+        elif r is None:
+            error = "We couldn't find that request. You can still submit yours."
+        else:
+            try:
+                add_needed_by(r, display_name(req, "requester"), f["need_note"], store.now().date())
+            except RequestChangeError as exc:
+                error = str(exc)
+        if error:
+            panel = check_matches(f["task"], f["info"], req, demo_provider if settings.is_preview else None) \
+                if f["task"] else None
+            return form_page(req, f, {}, panel, status_code=400, need_error=error)
+        store.save(r)
+        return RedirectResponse(f"/requests?needed={r.id}", status_code=303)
 
     # ---- My requests ------------------------------------------------------------------
 
@@ -455,15 +600,25 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         mine = [r for r in store.list_requests() if r.requester_name == name]
         return sorted(mine, key=lambda r: r.submitted_at, reverse=True)
 
+    def needed_too(req: HTTPRequest) -> list[Request]:
+        """Requests this person was added to with "I need this too"."""
+        name = display_name(req, "requester")
+        found = [r for r in store.list_requests() if any(p.get("name") == name for p in r.needed_by or [])]
+        return sorted(found, key=lambda r: r.submitted_at, reverse=True)
+
     @app.get("/requests", response_class=HTMLResponse)
     def requests_list(req: HTTPRequest):
-        items = []
         decisions = {d.request_id: d for d in store.list_decisions()}
-        for r in my_requests(req):
-            items.append({"r": r, "d": decisions.get(r.id)})
-        return render(req, "my_requests.html", "mine", items=items)
+        items = [{"r": r, "d": decisions.get(r.id)} for r in my_requests(req)]
+        also = [{"r": r, "d": decisions.get(r.id)} for r in needed_too(req)]
+        added = store.get_request(req.query_params.get("needed", "")) if req.query_params.get("needed") else None
+        return render(req, "my_requests.html", "mine", items=items, also=also, added=added)
 
-    def request_page_context(r: Request) -> dict:
+    def request_page_context(r: Request, req: HTTPRequest) -> dict:
+        name = display_name(req, "requester")
+        mine = r.requester_name == name
+        my_note = next((p.get("note") for p in r.needed_by or [] if p.get("name") == name), None)
+        also = not mine and any(p.get("name") == name for p in r.needed_by or [])
         d = store.decision_for(r.id)
         tools = tool_map()
         open_tool = None
@@ -472,7 +627,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
                 open_tool = tools.get(d.existing_tool_id or "")
             elif d.outcome in ("approve", "approve_with_limits"):
                 open_tool = next((t for t in tools.values() if t.from_request == r.id), None)
-        return {"r": r, "d": d, "open_tool": open_tool, "tools": tools}
+        return {"r": r, "d": d, "open_tool": open_tool, "tools": tools, "needed_too": also, "my_note": my_note}
 
     @app.get("/requests/{request_id}", response_class=HTMLResponse)
     def request_page(req: HTTPRequest, request_id: str):
@@ -480,7 +635,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         if not r:
             return render(req, "message.html", "mine", status_code=404, heading="We couldn't find that request",
                           body="It may have been removed. Your other requests are on My requests.")
-        ctx = request_page_context(r)
+        ctx = request_page_context(r, req)
         return render(
             req, "request_page.html", "mine", **ctx,
             submitted=req.query_params.get("submitted") == "1",
@@ -505,7 +660,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             error = too_long_message("Your question", text) or ""
         if error:
             return render(
-                req, "request_page.html", "mine", status_code=400, **request_page_context(r),
+                req, "request_page.html", "mine", status_code=400, **request_page_context(r, req),
                 submitted=False, sizeup_note=False, asked=False, ask_error=error, ask_text=text[:5000],
             )
         now = store.now()
@@ -517,9 +672,9 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
     # ---- Tool inventory -----------------------------------------------------------------
 
     STATUS_FILTERS = {
-        "": "Ready or being tried",
+        "": "Ready or in pilot",
         "ready": "Ready to use",
-        "being_tried": "Being tried",
+        "being_tried": "In pilot",
         "all": "All, including retired",
     }
 
@@ -751,12 +906,17 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
     def queue_line(r: Request, now: datetime) -> str:
         n = days_between(r.submitted_at, now)
         when = "Submitted today" if n <= 0 else ("Yesterday" if n == 1 else f"{n} days ago")
+        security_done = any(e["label"].startswith("Security check") for e in r.timeline)
+        auto = auto_security(r)
         if any(not q.get("handled") for q in r.questions):
             note = "Has a question about the decision."
-        elif r.status != "decided" and r.size_up and r.size_up.get("security_check_needed") and not any(
-            e["label"].startswith("Security check") for e in r.timeline
-        ):
+        elif r.status != "decided" and auto == "person" and not security_done:
+            note = "A person from security will review this."
+        elif r.status != "decided" and not auto and r.size_up and r.size_up.get("security_check_needed") \
+                and not security_done:
             note = "Needs a security check."
+        elif r.status != "decided" and auto == "passed" and not r.matches:
+            note = "Security check passed automatically."
         elif any(m["confidence"] == "close" for m in r.matches):
             note = "Close match found."
         elif r.matches:
@@ -832,7 +992,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         items = queue()
         tools = tool_map()
         ctx: dict[str, Any] = dict(
-            queue=[{"r": x, "line": queue_line(x, now)} for x in items],
+            queue=[{"r": x, "line": queue_line(x, now), "needed_by": needed_by_count(x)} for x in items],
             sel=r,
             tools=tools,
             usable_tools=sorted([t for t in tools.values() if t.status != "retired"], key=lambda t: t.name),
@@ -850,6 +1010,8 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
                 decision=store.decision_for(r.id) if r.status == "decided" else None,
                 saw_line=saw_line(r, tools),
                 open_questions=[q for q in r.questions if not q.get("handled")],
+                auto_result=auto_security(r),
+                show_needed_by=True,
             )
         ctx.update(extra)
         return render(req, "review.html", "review", status_code=status_code, **ctx)
@@ -889,18 +1051,21 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             return RedirectResponse("/review", status_code=303)
         return review_render(req, r)
 
-    def make_draft(r: Request, form: DecisionForm) -> tuple[Optional[dict], str]:
+    def make_draft(r: Request, form: DecisionForm, req: HTTPRequest) -> tuple[Optional[dict], str, bool]:
+        """Returns (draft, error, limited). limited is True when the live preview limit was reached."""
         if form.outcome not in OUTCOMES:
-            return None, "Choose an outcome first, then Claude can draft the reason."
+            return None, "Choose an outcome first, then Claude can draft the reason.", False
         tools = tool_map()
         chosen = tools.get(form.existing_tool_id) if form.outcome == "use_existing" else None
+        p = prov(req)
         try:
-            draft = provider.draft_reason(r, form.outcome, form.checklist.as_dict(), chosen, form.limits)
+            draft = p.draft_reason(r, form.outcome, form.checklist.as_dict(), chosen, form.limits)
         except ClaudeUnavailable:
-            return None, "Claude couldn't draft a reason just now. You can write it yourself."
+            return None, "Claude couldn't draft a reason just now. You can write it yourself.", False
+        limited = bool(getattr(p, "limited", False))
         if not draft:
-            return None, "The demo has no recorded draft for this outcome. Live mode asks Claude."
-        return draft, ""
+            return None, "The demo has no recorded draft for this outcome. Live mode asks Claude.", limited
+        return draft, "", limited
 
     @app.post("/review/{request_id}", response_class=HTMLResponse)
     async def review_post(req: HTTPRequest, request_id: str):
@@ -915,12 +1080,12 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         form = form_from_dict(data)
 
         if action == "draft":
-            draft, err = make_draft(r, form)
+            draft, err, limited = make_draft(r, form, req)
             if draft:
                 form.reason = draft["reason"]
                 form.what_would_change = draft["what_would_change"]
                 form.drafted_reason = draft["reason"]
-            return review_render(req, r, form, draft_error=err,
+            return review_render(req, r, form, draft_error=err, draft_limited=limited,
                                  draft_note="Drafted by Claude from your checklist. Edit it before sending." if draft else "")
 
         if action == "handled":
@@ -947,7 +1112,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         if r.status == "decided":
             return review_render(req, r, form, status_code=400, flash="This request already has a decision.")
         inventory = store.list_tools()
-        errors = validate_decision(form, inventory)
+        errors = validate_decision(form, inventory, auto_security(r))
         if errors:
             return review_render(req, r, form, status_code=400, errors=errors)
 
@@ -979,16 +1144,13 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         if not r:
             return JSONResponse({"error": "We couldn't find that request."}, status_code=404)
         form = form_from_dict(form_to_dict(await req.form()))
-        draft, err = make_draft(r, form)
+        draft, err, limited = make_draft(r, form, req)
         if not draft:
-            return JSONResponse({"error": err}, status_code=200)
-        return JSONResponse(
-            {
-                "reason": draft["reason"],
-                "what_would_change": draft["what_would_change"],
-                "note": "Drafted by Claude from your checklist. Edit it before sending.",
-            }
-        )
+            return JSONResponse({"error": (MSG_LIMITED + " " + err) if limited else err}, status_code=200)
+        note = "Drafted by Claude from your checklist. Edit it before sending."
+        if limited:
+            note = MSG_LIMITED + " " + note
+        return JSONResponse({"reason": draft["reason"], "what_would_change": draft["what_would_change"], "note": note})
 
     return app
 

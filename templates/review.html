@@ -4,12 +4,12 @@
 {% block content %}
 <h1>Review queue</h1>
 <p class="page-intro">Requests waiting for a decision. Claude sizes each one up and can draft the reason. You decide.</p>
-{% if flash %}<p class="notice {{ 'notice-info' if mode == 'demo' and flash == DEMO_READONLY else 'notice-ok' }}" role="status">{{ flash }}</p>{% endif %}
+{% if flash %}<p class="notice {{ 'notice-info' if read_only and flash == DEMO_READONLY else 'notice-ok' }}" role="status">{{ flash }}</p>{% endif %}
 
 {% if needs %}
 <section class="card needs-card" aria-labelledby="needs-h">
   <h2 id="needs-h">Needs a decision</h2>
-  <p class="muted small">Trials that ran out and reviews that came due. Open a tool to ship it, extend the trial, mark it reviewed or retire it.</p>
+  <p class="muted small">Pilots that ran out and reviews that came due. Open a tool to ship it, extend the pilot, mark it reviewed or retire it.</p>
   <ul class="list">
     {% for n in needs %}
     <li class="needs-item">
@@ -40,6 +40,7 @@
       <li><a href="/review/{{ item.r.id }}"{% if sel and sel.id == item.r.id %} aria-current="true"{% endif %}>
         <span class="q-title">{{ item.r.title }}</span>
         <span class="q-line">{{ item.line }}</span>
+        {% if item.needed_by > 1 %}<span class="needed-by">Needed by {{ item.needed_by }} people</span>{% endif %}
       </a></li>
       {% endfor %}
     </ul>
@@ -69,8 +70,8 @@
       <div class="callout"><strong>What would change the answer:</strong> {{ decision.what_would_change }}</div>
       <p class="muted small">Decided {{ decision.decided_at|date }} by {{ decision.decided_by }}. Answer the requester directly, then mark the question as handled. If the answer changes, they can start a new request from this one.</p>
       <form method="post" action="/review/{{ r.id }}">
-        <button type="submit" class="btn" name="action" value="handled"{% if mode == "demo" %} disabled aria-describedby="handled-demo"{% endif %}>Mark question as handled</button>
-        {% if mode == "demo" %}<p class="muted small" id="handled-demo" style="margin:8px 0 0">{{ DEMO_READONLY }}</p>{% endif %}
+        <button type="submit" class="btn" name="action" value="handled"{% if read_only %} disabled aria-describedby="handled-demo"{% endif %}>Mark question as handled</button>
+        {% if read_only %}<p class="muted small" id="handled-demo" style="margin:8px 0 0">{{ DEMO_READONLY }}</p>{% endif %}
       </form>
     </section>
     {% else %}
@@ -88,15 +89,18 @@
       {{ yes_no("already_exists", "Does an approved tool already do this?", form.checklist.already_exists) }}
       {{ yes_no("sends_without_check", "Would it send anything to customers or the public without a person checking first?", form.checklist.sends_without_check) }}
       {{ yes_no("uses_customer_details", "Does it use customer or deal details?", form.checklist.uses_customer_details) }}
-      <fieldset class="field checklist-q"{{ described(errors, "security_check") }}>
+      <fieldset class="field checklist-q stacked"{{ described(errors, "security_check", "security-passed-hint" if auto_result == "passed" else None) }}>
         <legend id="security_check">Security check</legend>
         <div class="seg">
           {% for key, text in SECURITY_CHECK.items() %}
+          {% if key != "passed" or auto_result == "passed" or form.checklist.security_check == "passed" %}
           <label><input type="radio" name="security_check" value="{{ key }}"{% if form.checklist.security_check == key %} checked{% endif %}> {{ text }}</label>
+          {% endif %}
           {% endfor %}
         </div>
         {{ field_error(errors, "security_check") }}
       </fieldset>
+      {% if auto_result == "passed" %}<p class="hint" id="security-passed-hint" style="margin:-12px 0 20px">Passed automatically against security's rules. Change it to Needed if you want a person from security to look.</p>{% endif %}
 
       <div id="sends-warning" class="notice notice-warn" role="status"{% if not warnings %} hidden{% endif %}>
         {{ icon("info", 18) }} Northstar doesn't approve tools that send to customers on their own.
@@ -128,7 +132,7 @@
       </div>
 
       <fieldset class="subform js-cond" data-for="approve approve_with_limits">
-        <legend>The new tool <span class="muted">(for approvals; it starts as being tried)</span></legend>
+        <legend>The new tool <span class="muted">(for approvals; it starts as a pilot)</span></legend>
         <div class="field"><label for="tool_name">Tool name</label><input type="text" id="tool_name" name="tool_name" value="{{ form.new_tool.name }}"{{ described(errors, "tool_name") }}>{{ field_error(errors, "tool_name") }}</div>
         <div class="field"><label for="tool_purpose">What it does (one sentence)</label><input type="text" id="tool_purpose" name="tool_purpose" value="{{ form.new_tool.purpose }}"{{ described(errors, "tool_purpose") }}>{{ field_error(errors, "tool_purpose") }}</div>
         <div class="grid-2">
@@ -144,7 +148,7 @@
           <div class="choices">{% for key, text in INFO_KINDS.items() %}<label class="choice"><input type="checkbox" name="tool_allowed_info" value="{{ key }}"{% if key in form.new_tool.allowed_info %} checked{% endif %}> {{ text }}</label>{% endfor %}</div>
           {{ field_error(errors, "tool_allowed_info") }}
         </fieldset>
-        <div class="field" style="margin-bottom:0"><label for="tool_trial_ends">Trial ends</label><input type="date" id="tool_trial_ends" name="tool_trial_ends" value="{{ form.new_tool.trial_ends.isoformat() if form.new_tool.trial_ends else '' }}"{{ described(errors, "tool_trial_ends") }}>{{ field_error(errors, "tool_trial_ends") }}</div>
+        <div class="field" style="margin-bottom:0"><label for="tool_trial_ends">Pilot ends</label><input type="date" id="tool_trial_ends" name="tool_trial_ends" value="{{ form.new_tool.trial_ends.isoformat() if form.new_tool.trial_ends else '' }}"{{ described(errors, "tool_trial_ends") }}>{{ field_error(errors, "tool_trial_ends") }}</div>
       </fieldset>
 
       <div class="field">
@@ -154,7 +158,7 @@
         <div class="btn-row" style="margin-top:8px">
           <button type="submit" class="btn btn-secondary" name="action" value="draft" id="draft-btn" formnovalidate>{{ icon("spark", 18) }}Draft the reason for me</button>
         </div>
-        <p id="draft-note" class="small" role="status" aria-live="polite">{% if draft_note %}<span class="claude-note" style="display:inline-flex;margin:8px 0 0">{{ icon("spark", 16) }}{{ draft_note }} A person decides.</span>{% endif %}{% if draft_error %}<span class="field-error">{{ draft_error }}</span>{% endif %}</p>
+        <p id="draft-note" class="small" role="status" aria-live="polite">{% if draft_limited %}<span class="claude-note" style="display:inline-flex;margin:8px 0 0">{{ MSG_LIMITED }}</span>{% endif %}{% if draft_note %}<span class="claude-note" style="display:inline-flex;margin:8px 0 0">{{ icon("spark", 16) }}{{ draft_note }} A person decides.</span>{% endif %}{% if draft_error %}<span class="field-error">{{ draft_error }}</span>{% endif %}</p>
         <input type="hidden" name="drafted_reason" id="drafted_reason" value="{{ form.drafted_reason }}">
       </div>
 
@@ -166,10 +170,10 @@
 
       <div class="decision-actions">
         <div class="btn-row">
-          <button type="submit" class="btn" name="action" value="send"{% if mode == "demo" %} disabled aria-describedby="demo-line"{% endif %}>Send decision</button>
-          <button type="submit" class="btn btn-secondary" name="action" value="save" formnovalidate{% if mode == "demo" %} disabled aria-describedby="demo-line"{% endif %}>Save for later</button>
+          <button type="submit" class="btn" name="action" value="send"{% if read_only %} disabled aria-describedby="demo-line"{% endif %}>Send decision</button>
+          <button type="submit" class="btn btn-secondary" name="action" value="save" formnovalidate{% if read_only %} disabled aria-describedby="demo-line"{% endif %}>Save for later</button>
         </div>
-        {% if mode == "demo" %}<p class="muted small" id="demo-line" style="margin:8px 0 0">{{ DEMO_READONLY }}</p>{% endif %}
+        {% if read_only %}<p class="muted small" id="demo-line" style="margin:8px 0 0">{{ DEMO_READONLY }}</p>{% endif %}
         <p class="small" style="margin:8px 0 0">Claude never sends a decision. You do.</p>
       </div>
     </form>

@@ -23,6 +23,7 @@ from .models import (
     OUTCOMES,
     READY_STATUSES,
     SECURITY_CHECK,
+    SECURITY_COVERED,
     TOOL_STATUSES,
     Decision,
     Request,
@@ -34,7 +35,10 @@ APPROVALS = ("approve", "approve_with_limits")
 
 MSG_SECURITY = "Finish the security check before approving."
 MSG_SENDS_WARNING = "Northstar doesn't approve tools that send to customers on their own."
-MSG_STOPPED = "A tool the team stopped using isn't ready to ship. Extend the trial or retire it."
+MSG_STOPPED = "A tool the team stopped using isn't ready to ship. Extend the pilot or retire it."
+MSG_PASSED_ONLY = (
+    "Passed automatically is only for requests that passed security's rules. Choose Needed, Done or Not needed."
+)
 MAX_EXTENSION_DAYS = 60
 READY_TOTAL = 4
 
@@ -86,7 +90,7 @@ class Checklist:
     already_exists: str = ""  # yes / no
     sends_without_check: str = ""  # yes / no
     uses_customer_details: str = ""  # yes / no
-    security_check: str = "not_needed"  # not_needed / needed / done
+    security_check: str = "not_needed"  # not_needed / passed / needed / done
 
     def as_dict(self) -> dict:
         return {
@@ -97,11 +101,23 @@ class Checklist:
         }
 
 
+def auto_security(request: Request) -> str:
+    """The automatic security check saved with the request: not_needed, passed, person, or "" if none."""
+    return str((request.security_result or {}).get("result") or "")
+
+
 def prefill_checklist(request: Request) -> Checklist:
-    """Start the checklist from what the request says. The reviewer can change anything."""
+    """Start the checklist from what the request says. The reviewer can change anything.
+
+    The security item comes from the automatic check against security's rules: Not needed,
+    Passed automatically, or Needed. Requests saved before that check fall back to the old read.
+    """
     uses_customer = bool(set(request.info) & CUSTOMER_INFO)
     security = "not_needed"
-    if request.size_up and request.size_up.get("security_check_needed"):
+    auto = auto_security(request)
+    if auto:
+        security = {"not_needed": "not_needed", "passed": "passed"}.get(auto, "needed")
+    elif request.size_up and request.size_up.get("security_check_needed"):
         security = "needed"
     if any(e.get("label", "").startswith("Security check") for e in request.timeline):
         security = "done"
@@ -142,8 +158,12 @@ def warnings_for(form: DecisionForm) -> list[str]:
     return []
 
 
-def validate_decision(form: DecisionForm, inventory: list[Tool]) -> dict[str, str]:
-    """Return {field: message}. An empty dict means the decision can be sent."""
+def validate_decision(form: DecisionForm, inventory: list[Tool], auto_result: str = "") -> dict[str, str]:
+    """Return {field: message}. An empty dict means the decision can be sent.
+
+    auto_result is the request's automatic security check. "Passed automatically" can only be
+    kept when the request passed; a reviewer can always change it to Needed.
+    """
     errors: dict[str, str] = {}
     c = form.checklist
     if c.already_exists not in YES_NO:
@@ -156,6 +176,8 @@ def validate_decision(form: DecisionForm, inventory: list[Tool]) -> dict[str, st
         errors["uses_customer_details"] = "Answer whether it uses customer or deal details."
     if c.security_check not in SECURITY_CHECK:
         errors["security_check"] = "Choose where the security check stands."
+    elif c.security_check == "passed" and auto_result != "passed":
+        errors["security_check"] = MSG_PASSED_ONLY
 
     if form.outcome not in OUTCOMES:
         errors["outcome"] = "Choose an outcome."
@@ -195,7 +217,7 @@ def validate_decision(form: DecisionForm, inventory: list[Tool]) -> dict[str, st
         if not nt.allowed_info or any(i not in INFO_KINDS for i in nt.allowed_info):
             errors["tool_allowed_info"] = "Choose what information the tool is okay to use."
         if nt.trial_ends is None:
-            errors["tool_trial_ends"] = "Pick the date the trial ends."
+            errors["tool_trial_ends"] = "Pick the date the pilot ends."
     return errors
 
 
@@ -226,7 +248,7 @@ def build_decision(
 def build_new_tool(
     form: DecisionForm, request: Request, existing_ids: set[str], today: Optional[date] = None
 ) -> Tool:
-    """Approvals create a tool. New tools always start as being tried."""
+    """Approvals create a tool. New tools always start as a pilot (being_tried)."""
     today = today or date.today()
     nt = form.new_tool
     base = slugify(nt.name)
@@ -276,11 +298,11 @@ def one_line(text: str) -> str:
     return " ".join((text or "").split())
 
 
-# ---- Trial ended and Review due ---------------------------------------------------
+# ---- Pilot ended and Review due ---------------------------------------------------
 
 
 def trial_ended(tool: Tool, today: date) -> bool:
-    """A being tried tool whose trial end date has passed. The end date itself still counts."""
+    """A tool in pilot whose end date has passed. The end date itself still counts."""
     return tool.status == "being_tried" and tool.trial_ends is not None and tool.trial_ends < today
 
 
@@ -308,12 +330,12 @@ def _ago(days: int) -> str:
 
 
 def needs_decision(tools: list[Tool], today: date) -> list[dict[str, Any]]:
-    """Tools a reviewer should look at: trials that ran out and reviews that came due."""
+    """Tools a reviewer should look at: pilots that ran out and reviews that came due."""
     items = []
     for t in sorted(tools, key=lambda t: t.name):
         if trial_ended(t, today):
             team = t.teams[0] if t.teams else t.owner_team
-            line = f"Being tried by {team}. Trial ended {_ago((today - t.trial_ends).days)}."
+            line = f"In pilot with {team}. Pilot ended {_ago((today - t.trial_ends).days)}."
             items.append({"tool": t, "flag": "trial_ended", "line": line})
         elif review_due(t, today):
             line = (
@@ -349,7 +371,7 @@ def ready_items(tool: Tool) -> list[ReadyItem]:
     return [
         ReadyItem("owner", "Owner agreed to own it", bool(tool.owner_agreed)),
         ReadyItem(
-            "security", "Security check done or not needed", tool.security_check in ("done", "not_needed")
+            "security", "Security check done or not needed", tool.security_check in SECURITY_COVERED
         ),
         ReadyItem(
             "kept_using",
@@ -381,7 +403,7 @@ def save_ready_answers(
 ) -> None:
     """Save the reviewer's answers. Answers can be saved a part at a time."""
     if tool.status != "being_tried":
-        raise ToolChangeError("Only a tool that is being tried has a ready to ship check.")
+        raise ToolChangeError("Only a tool in pilot has a ready to ship check.")
     kept_using, went_wrong = kept_using.strip(), went_wrong.strip()
     how_tested, test_link = how_tested.strip(), test_link.strip()
     errors: dict[str, str] = {}
@@ -412,7 +434,7 @@ def save_ready_answers(
 def record_security_check(tool: Tool, done: bool, on: Optional[date], note: str, today: date) -> None:
     """Record a security check that was needed when the tool was approved."""
     if tool.status != "being_tried":
-        raise ToolChangeError("Only a tool that is being tried has a ready to ship check.")
+        raise ToolChangeError("Only a tool in pilot has a ready to ship check.")
     if tool.security_check != "needed":
         raise ToolChangeError("The security check is already covered for this tool.")
     note = one_line(note)
@@ -435,12 +457,12 @@ def record_security_check(tool: Tool, done: bool, on: Optional[date], note: str,
 
 
 def ship_tool(tool: Tool, to_status: str, limits: str = "", today: Optional[date] = None) -> Tool:
-    """Move a tool from being tried to approved or approved with limits.
+    """Move a tool from pilot to approved or approved with limits.
 
     This is the promotion gate: it refuses until all four ready to ship items are done.
     """
     if tool.status != "being_tried":
-        raise ToolChangeError("Only a tool that is being tried can be shipped.")
+        raise ToolChangeError("Only a tool in pilot can be shipped.")
     if team_stopped(tool):
         raise ToolChangeError(MSG_STOPPED)
     n = ready_count(tool)
@@ -463,11 +485,11 @@ def ship_tool(tool: Tool, to_status: str, limits: str = "", today: Optional[date
 
 
 def extend_trial(tool: Tool, new_end: Optional[date], today: date) -> Tool:
-    """A trial can be extended once, by up to 60 days past the current end date."""
+    """A pilot can be extended once, by up to 60 days past the current end date."""
     if tool.status != "being_tried" or tool.trial_ends is None:
-        raise ToolChangeError("Only a tool that is being tried can have its trial extended.")
+        raise ToolChangeError("Only a tool in pilot can have its pilot extended.")
     if tool.trial_extended:
-        raise ToolChangeError("This trial was already extended once. Ship it or retire it.", field="new_end")
+        raise ToolChangeError("This pilot was already extended once. Ship it or retire it.", field="new_end")
     latest = tool.trial_ends + timedelta(days=MAX_EXTENSION_DAYS)
     if new_end is None:
         raise ToolChangeError("Pick the new end date.", field="new_end")
@@ -477,7 +499,7 @@ def extend_trial(tool: Tool, new_end: Optional[date], today: date) -> Tool:
         )
     if new_end > latest:
         raise ToolChangeError(
-            f"A trial can be extended by up to {MAX_EXTENSION_DAYS} days, to {long_date(latest)} at the latest.",
+            f"A pilot can be extended by up to {MAX_EXTENSION_DAYS} days, to {long_date(latest)} at the latest.",
             field="new_end",
         )
     if new_end <= today:
@@ -547,3 +569,40 @@ def copy_request_fields(request: Request) -> dict:
     data["info"] = list(request.info)
     data["copied_from"] = request.id
     return data
+
+
+# ---- I need this too ---------------------------------------------------------------------
+
+OPEN_STATUSES = ("waiting", "in_review")
+
+
+class RequestChangeError(ValueError):
+    """A change to a request that can't be made."""
+
+
+def needed_by_count(request: Request) -> int:
+    """The original requester plus everyone added with "I need this too"."""
+    return 1 + len(request.needed_by or [])
+
+
+def add_needed_by(request: Request, name: str, note: str, today: date) -> Request:
+    """Add a person to a request that is still waiting or in review.
+
+    A person can be added only once, and never to their own request.
+    """
+    name = one_line(name)
+    note = one_line(note)
+    if not name:
+        raise RequestChangeError("We need your name to add you to this request.")
+    if request.status not in OPEN_STATUSES:
+        raise RequestChangeError("This request already has a decision. You can see it on Decided before.")
+    if name == request.requester_name:
+        raise RequestChangeError("This is your own request, so you're already on it.")
+    if any(p.get("name") == name for p in request.needed_by or []):
+        raise RequestChangeError("You're already on this request. You'll see the decision on My requests.")
+    if len(note) > MAX_LINE:
+        raise RequestChangeError(f"Keep the note to one line, under {MAX_LINE} characters.")
+    request.needed_by = list(request.needed_by or []) + [
+        {"name": name, "note": note or None, "date": today.isoformat()}
+    ]
+    return request

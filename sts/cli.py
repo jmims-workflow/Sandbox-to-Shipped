@@ -24,7 +24,7 @@ def serve(
     port = port or int(os.environ.get("PORT", "8080"))
     settings = Settings.from_env()
     if settings.fell_back:
-        typer.echo("STS_MODE is live but ANTHROPIC_API_KEY is not set. Running the demo instead.")
+        typer.echo(f"STS_MODE is {settings.requested_mode} but ANTHROPIC_API_KEY is not set. Running the demo instead.")
     typer.echo(f"Sandbox to Shipped running in {settings.mode} mode on http://{host}:{port}")
     uvicorn.run("sts.web:app", host=host, port=port, reload=reload)
 
@@ -60,14 +60,15 @@ def seed(
 
 @app.command("check-data")
 def check_data():
-    """Check the demo data files and print any problems."""
-    problems = check_demo_data(Settings.from_env().demo_dir)
+    """Check the demo data files and security_rules.yaml, and print any problems."""
+    settings = Settings.from_env()
+    problems = check_demo_data(settings.demo_dir, settings.security_rules_path)
     if problems:
         typer.echo(f"Found {len(problems)} problem(s):")
         for p in problems:
             typer.echo(f"  {p}")
         raise typer.Exit(1)
-    typer.echo("Demo data looks good.")
+    typer.echo("Demo data and security rules look good.")
 
 
 if __name__ == "__main__":

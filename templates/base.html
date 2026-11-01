@@ -44,6 +44,8 @@
   </form>
   {% if mode == "live" %}
   <p class="mode-pill mode-live">Live: runs on Claude</p>
+  {% elif mode == "preview" %}
+  <p class="mode-pill mode-preview">Live preview: real Claude, nothing saved</p>
   {% else %}
   <p class="mode-pill mode-demo">Demo: sample data</p>
   {% endif %}
@@ -75,7 +77,11 @@
   </aside>
 
   <main id="main" tabindex="-1">
-    {% if fell_back %}
+    {% if fell_back and requested_mode == "preview" %}
+    <div class="notice notice-warn" role="status">
+      <strong>Live preview is turned on, but no API key is set.</strong> The app is showing the sample version instead, with no real Claude results. Add ANTHROPIC_API_KEY on the server to use the live preview.
+    </div>
+    {% elif fell_back %}
     <div class="notice notice-warn" role="status">
       <strong>Live mode is turned on, but no API key is set.</strong> The app is showing sample data instead. Add ANTHROPIC_API_KEY on the server to run live.
     </div>

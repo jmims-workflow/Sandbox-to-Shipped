@@ -16,10 +16,12 @@
       if (key === last || !(data.get("task") || "").trim()) return;
       last = key;
       var missing = document.getElementById("whats_missing");
+      var needNote = document.getElementById("need_note");
       var body = new FormData();
       body.append("task", data.get("task"));
       data.getAll("info").forEach(function (v) { body.append("info", v); });
       if (missing) body.append("whats_missing", missing.value);
+      if (needNote) body.append("need_note", needNote.value);
       panel.setAttribute("aria-busy", "true");
       fetch(form.getAttribute("data-check-url"), { method: "POST", body: body })
         .then(function (r) { return r.ok ? r.text() : null; })
@@ -37,6 +39,30 @@
     });
     last = (task.value || "").trim() + "|" + new FormData(form).getAll("info").join(",");
     document.querySelectorAll(".js-hide").forEach(function (el) { el.hidden = true; });
+
+    // The security questions show only when the request uses more than public information.
+    // Early warnings follow the same rules as the server (sts/security.py). They never block submitting.
+    var questions = document.getElementById("security-questions");
+    var hint = document.getElementById("security-hint");
+    var setWarning = function (id, on) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      var text = on ? el.getAttribute("data-message") : "";
+      if (el.textContent.trim() !== text) el.textContent = text;
+    };
+    var updateSecurity = function () {
+      var info = new FormData(form).getAll("info");
+      var needed = info.some(function (v) { return v !== "public_only"; });
+      if (questions) questions.hidden = !needed;
+      if (hint) hint.hidden = true;
+      var sends = form.querySelector('input[name="sends_without_check"]:checked');
+      setWarning("warn-info", info.indexOf("sensitive_personal") !== -1);
+      setWarning("warn-sends_without_check", needed && !!sends && sends.value === "yes");
+    };
+    form.addEventListener("change", function (e) {
+      if (e.target && (e.target.name === "info" || e.target.name === "sends_without_check")) updateSecurity();
+    });
+    updateSecurity();
   }
 
   // Review queue: show only the fields the chosen outcome needs, and the sends warning.

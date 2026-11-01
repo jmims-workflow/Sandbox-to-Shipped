@@ -9,7 +9,6 @@
   ],
   "size_up": {
     "title": "Auto-reply to inbound demo requests",
-    "security_check_needed": true,
     "bullets": [
       {
         "label": "Sends on its own",
@@ -17,7 +16,7 @@
       },
       {
         "label": "Information",
-        "text": "Customer contact details from the inbound demo form. A security check is needed."
+        "text": "Customer contact details from the inbound demo form. Replies would go to prospects as soon as the form is filled in."
       },
       {
         "label": "Closest match",

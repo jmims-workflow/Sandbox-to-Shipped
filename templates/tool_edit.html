@@ -29,7 +29,7 @@
     <div class="field"><label for="next_review">Next review (month and year)</label><input type="text" id="next_review" name="next_review" value="{{ t.next_review or '' }}"></div>
     <div class="field"><label for="link">Link (optional)</label><input type="url" id="link" name="link" value="{{ t.link or '' }}"{{ described(errors, "link") }}>{{ field_error(errors, "link") }}</div>
   </div>
-  <button type="submit" class="btn"{% if mode == "demo" %} disabled aria-describedby="edit-demo"{% endif %}>Save changes</button>
-  {% if mode == "demo" %}<p class="muted small" id="edit-demo" style="margin:8px 0 0">{{ TOOL_READONLY }}</p>{% endif %}
+  <button type="submit" class="btn"{% if read_only %} disabled aria-describedby="edit-demo"{% endif %}>Save changes</button>
+  {% if read_only %}<p class="muted small" id="edit-demo" style="margin:8px 0 0">{{ TOOL_READONLY }}</p>{% endif %}
 </form>
 {% endblock %}

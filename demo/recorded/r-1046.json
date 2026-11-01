@@ -9,7 +9,6 @@
   ],
   "size_up": {
     "title": "Renewal risk notes for CSMs",
-    "security_check_needed": true,
     "bullets": [
       {
         "label": "Closest match",
@@ -17,7 +16,7 @@
       },
       {
         "label": "Information",
-        "text": "Customer contact details and internal notes, including support history for large accounts. A security check is needed before this could be approved."
+        "text": "Customer contact details and internal notes, including support history for large accounts. The note stays with the CSM."
       },
       {
         "label": "Sends on its own",
@@ -35,8 +34,8 @@
       "what_would_change": "If you want to share a version of the note with customers, ask again so we can review that separately."
     },
     "approve": {
-      "reason": "Approved. Reading recent support threads and meeting notes to prepare for renewal calls is a good fit, and the security check is done. It starts as being tried with Customer success so we can see how useful the notes are.",
-      "what_would_change": "If the trial shows the notes miss important risks, we'll adjust what the tool reads before moving it to approved."
+      "reason": "Approved. Reading recent support threads and meeting notes to prepare for renewal calls is a good fit, and the security check is done. It starts as a pilot with Customer success so we can see how useful the notes are.",
+      "what_would_change": "If the pilot shows the notes miss important risks, we'll adjust what the tool reads before moving it to approved."
     },
     "use_existing": {
       "reason": "Support Handoff Summary already sums up Connect support threads and is approved for customer details. Start by using it on an account's recent threads before a renewal call and see how far that gets you.",

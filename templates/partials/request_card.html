@@ -1,11 +1,20 @@
-{% from "macros.html" import label %}
+{% from "macros.html" import label, request_details, security_result %}
 <section class="card" aria-labelledby="req-title">
   <div class="list-item" style="margin-bottom:8px">
     <h2 id="req-title" style="margin:0">{{ r.title }}</h2>
-    {{ label(r.status) }}
+    <span class="label-row">{{ label(r.status) }}{% if show_needed_by and needed_by_count(r) > 1 %}<span class="needed-by">Needed by {{ needed_by_count(r) }} people</span>{% endif %}</span>
   </div>
-  <p class="muted small">{{ r.requester_name }}. {{ r.team }}. {{ HOW_OFTEN[r.how_often] }}. {{ WHO_USES[r.who_uses] }}. {% for i in r.info %}{{ INFO_KINDS[i] }}{% if not loop.last %}; {% endif %}{% endfor %}.</p>
   <p>{{ r.task }}</p>
-  {% if r.extra %}<p><strong>Anything else:</strong> {{ r.extra }}</p>{% endif %}
-  <p class="muted small" style="margin:0">{{ saw_line }}</p>
+  {{ request_details(r) }}
+  {% if r.extra %}<p style="margin-top:12px"><strong>Anything else:</strong> {{ r.extra }}</p>{% endif %}
+  {{ security_result(r) }}
+  {% if show_needed_by and r.needed_by %}
+  <div class="needed-list">
+    <h3>Also needed by</h3>
+    <ul class="small">
+      {% for p in r.needed_by %}<li><strong>{{ p.name }}</strong>{% if p.note %}: {{ p.note }}{% else %}. No note.{% endif %} <span class="muted">Added {{ p.date|date }}</span></li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  <p class="muted small" style="margin:12px 0 0">{{ saw_line }}</p>
 </section>

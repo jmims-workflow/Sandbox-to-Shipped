@@ -1,9 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Here's what happens next | {% endblock %}
+{% from "macros.html" import icon %}
 {% block content %}
 <h1>Here's what happens next</h1>
 <p class="page-intro">This is your request as a reviewer would see it. A reviewer reads it, works through a short checklist and sends a decision with a reason you can see on My requests.</p>
+{% if mode == "preview" %}
+<p class="notice notice-info" role="status">This is the live preview, so nothing was saved. Live mode saves your request and puts it in the review queue.</p>
+{% else %}
 <p class="notice notice-info" role="status">This is the demo, so nothing was saved. Live mode saves your request and puts it in the review queue.</p>
+{% endif %}
 <div class="two-col wide-right">
   <div class="stack">
     {% include "partials/request_card.html" %}
@@ -13,11 +18,12 @@
     {% include "partials/claude_read.html" %}
     <div class="card">
       <h2>Then</h2>
-      <ol style="margin:0;padding-left:20px">
+      <ol style="margin:0 0 12px;padding-left:20px">
         <li>A reviewer picks it up and checks it against what we already have.</li>
-        <li>If it uses customer details, someone from security takes a look.</li>
+        <li>If it uses customer or company information, it's checked against security's rules. Sensitive personal information always goes to a person on the security team.</li>
         <li>You get a decision, a plain reason and what would change the answer.</li>
       </ol>
+      <p style="margin:0">{{ icon("clock", 18) }} Reviewers usually answer within {{ REVIEW_DAYS }} working day{{ "" if REVIEW_DAYS == 1 else "s" }}.</p>
     </div>
     <p><a href="/" class="btn btn-secondary">Back to Request a tool</a></p>
   </div>

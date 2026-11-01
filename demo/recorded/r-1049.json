@@ -1,0 +1,31 @@
+{
+  "request_id": "r-1049",
+  "matches": [],
+  "size_up": {
+    "title": "Answer employee benefits questions",
+    "bullets": [
+      {
+        "label": "Closest match",
+        "text": "Nothing in the inventory answers questions for employees. The closest tools all write for customers or partners."
+      },
+      {
+        "label": "Information",
+        "text": "Benefits guides, plus each person's own enrollment details, which can include health details. The answers go to employees, not customers."
+      },
+      {
+        "label": "Sends on its own",
+        "text": "Unclear. The request doesn't say whether someone on the People team reads each answer before the employee sees it."
+      },
+      {
+        "label": "Worth asking",
+        "text": "Could a first version answer only from the benefits guides, without reading anyone's own enrollment details?"
+      }
+    ]
+  },
+  "drafts": {
+    "not_approved": {
+      "reason": "We're not approving this as requested because it would read each person's health and enrollment details to answer questions. Security reviews every tool that uses that kind of information, and this one isn't ready for that yet.",
+      "what_would_change": "A version that answers only from the benefits guides, without anyone's own details, would likely be approved."
+    }
+  }
+}

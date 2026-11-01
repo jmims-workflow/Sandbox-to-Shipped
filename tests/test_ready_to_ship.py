@@ -95,7 +95,7 @@ def test_no_approval_when_the_team_stopped_using_it():
         with pytest.raises(ToolChangeError) as exc:
             ship_tool(tool, status, "Only public pages.", today=TODAY)
         assert str(exc.value) == MSG_STOPPED
-    assert MSG_STOPPED == "A tool the team stopped using isn't ready to ship. Extend the trial or retire it."
+    assert MSG_STOPPED == "A tool the team stopped using isn't ready to ship. Extend the pilot or retire it."
     # Extend and retire are still open.
     extend_trial(tool, TODAY + timedelta(days=20), TODAY)
     retire_tool(tool, "The team stopped using it.", today=TODAY)
@@ -240,10 +240,10 @@ def test_needs_decision_lines():
              approved(id="c", name="C", owner_name="Marcus Bell", owner_team="Sales Operations")]
     items = needs_decision(tools, TODAY)
     assert [(i["tool"].id, i["flag"]) for i in items] == [("a", "trial_ended"), ("c", "review_due")]
-    assert items[0]["line"] == "Being tried by Partnerships. Trial ended 3 days ago."
+    assert items[0]["line"] == "In pilot with Partnerships. Pilot ended 3 days ago."
     assert items[1]["line"] == "Approved. Owner Marcus Bell, Sales Operations. Review was due in October 2026."
     tools[0].trial_ends = TODAY - timedelta(days=1)
-    assert needs_decision(tools, TODAY)[0]["line"].endswith("Trial ended yesterday.")
+    assert needs_decision(tools, TODAY)[0]["line"].endswith("Pilot ended yesterday.")
 
 
 # ---- Mark reviewed ----------------------------------------------------------------------------

@@ -9,15 +9,14 @@
   ],
   "size_up": {
     "title": "Translate help center articles",
-    "security_check_needed": false,
     "bullets": [
       {
         "label": "Closest match",
-        "text": "Translation Helper is being tried by International Marketing and translates approved public pages. Help center articles look like a close fit."
+        "text": "Translation Helper is in pilot with International Marketing and translates approved public pages. Help center articles look like a close fit."
       },
       {
         "label": "Information",
-        "text": "Public information only. No security check needed."
+        "text": "Public information only."
       },
       {
         "label": "Worth asking",
@@ -27,7 +26,7 @@
   },
   "drafts": {
     "use_existing": {
-      "reason": "Translation Helper is already being tried by International Marketing and handles public pages like help center articles. Ana Ferreira has added Support to the trial, so you can start using it this week.",
+      "reason": "Translation Helper is already in pilot with International Marketing and handles public pages like help center articles. Ana Ferreira has added Support to the pilot, so you can start using it this week.",
       "what_would_change": "If help center translations need a glossary of Connect terms the tool can't follow, tell us and we'll look at a separate version."
     }
   }

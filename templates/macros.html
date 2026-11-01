@@ -32,11 +32,11 @@
   "approve_with_limits": ("limits", "info", "Approved with limits"),
   "use_existing": ("existing", "arrow", "Use a tool we have"),
   "not_approved": ("notapproved", "x", "Not approved as requested"),
-  "being_tried": ("tried", "flask", "Being tried"),
+  "being_tried": ("tried", "flask", "In pilot"),
   "retired": ("retired", "archive", "Retired"),
   "waiting": ("waiting", "clock", "Waiting"),
   "in_review": ("waiting", "clock", "In review"),
-  "trial_ended": ("trial-ended", "hourglass", "Trial ended"),
+  "trial_ended": ("trial-ended", "hourglass", "Pilot ended"),
   "review_due": ("review-due", "calendar", "Review due"),
 } %}
 
@@ -69,7 +69,7 @@
 <p class="claude-note">{{ icon("spark", 16) }}<span>From Claude. A person decides every request.</span></p>
 {%- endmacro %}
 
-{# Trial ended shows to everyone; Review due only to reviewers. #}
+{# Pilot ended shows to everyone; Review due only to reviewers. #}
 {% macro flag_labels(flags, viewer) -%}
 {%- for f in flags %}{% if f == "trial_ended" or viewer == "reviewer" %}{{ label(f) }}{% endif %}{% endfor -%}
 {%- endmacro %}
@@ -77,10 +77,38 @@
 {% macro security_text(t, rc) -%}
 {%- if t.security_check == "done" -%}
 Done{% if rc.security_date %} {{ rc.security_date|date }}{% endif %}.{% if rc.security_note %} {{ rc.security_note }}{% endif %}
+{%- elif t.security_check == "passed" -%}
+Passed automatically against security's rules when it was requested.
 {%- elif t.security_check == "not_needed" -%}
 Not needed. It's okay to use with {% for i in t.allowed_info %}{{ INFO_KINDS[i]|lower }}{% if not loop.last %}, {% endif %}{% endfor %}.
 {%- else -%}
 Needed, and not recorded as done yet.
+{%- endif -%}
+{%- endmacro %}
+
+{# A request's details as labeled rows. #}
+{% macro request_details(r) -%}
+<dl class="facts details-list">
+  <div><dt>Requested by</dt><dd>{{ r.requester_name }}, {{ r.team }}</dd></div>
+  <div><dt>How often</dt><dd>{{ HOW_OFTEN[r.how_often] }}</dd></div>
+  <div><dt>Who would use it</dt><dd>{{ WHO_USES[r.who_uses] }}</dd></div>
+  <div><dt>Information it uses</dt><dd>{% for i in r.info %}{{ INFO_KINDS[i] }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd></div>
+</dl>
+{%- endmacro %}
+
+{# The automatic security check saved with a request. #}
+{% macro security_result(r) -%}
+{%- set res = r.security_result -%}
+{%- if res and res.result -%}
+<div class="security-result security-{{ res.result }}">
+  <p class="security-line">{{ icon("check" if res.result in ("not_needed", "passed") else "info", 18) }}<strong>{{ SECURITY_RESULTS[res.result] }}</strong></p>
+  {% if res.reasons %}<ul class="small">{% for why in res.reasons %}<li>{{ why }}</li>{% endfor %}</ul>{% endif %}
+  {% if r.security_answers %}
+  <dl class="facts small">
+    {% for q, text in QUESTIONS.items() %}{% if r.security_answers.get(q) %}<div><dt>{{ text }}</dt><dd>{{ answer_text(q, r.security_answers[q]) }}</dd></div>{% endif %}{% endfor %}
+  </dl>
+  {% endif %}
+</div>
 {%- endif -%}
 {%- endmacro %}
 

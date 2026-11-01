@@ -1,5 +1,6 @@
 {% from "macros.html" import icon, label %}
 <h2>{{ icon("search") }}<span>You may already have this</span></h2>
+{% if panel and panel.limited %}<p class="notice notice-info small" role="status">{{ MSG_LIMITED }}</p>{% endif %}
 {% if panel and panel.error %}
   <p class="notice notice-warn" role="alert">{{ panel.error }}</p>
 {% elif not panel or not panel.checked %}
@@ -31,10 +32,10 @@
   {% if panel.source == "word" %}
   <p class="muted small">Demo uses a simple word match. Live mode asks Claude.</p>
   {% endif %}
-  <input type="hidden" name="matches_json" form="request-form" value="{{ panel.raw|tojson|forceescape }}">
+  <input type="hidden" name="matches_json" value="{{ panel.raw|tojson|forceescape }}">
   <div class="field">
-    <label for="whats_missing">Not quite right? Say what's missing.</label>
-    <textarea id="whats_missing" name="whats_missing" form="request-form" rows="3"{% if errors.get("whats_missing") %} aria-invalid="true" aria-describedby="whats_missing-error"{% endif %}>{{ f.whats_missing }}</textarea>
+    <label for="whats_missing">Not quite right? Say what's missing (optional, sent with your request).</label>
+    <textarea id="whats_missing" name="whats_missing" rows="3"{% if errors.get("whats_missing") %} aria-invalid="true" aria-describedby="whats_missing-error"{% endif %}>{{ f.whats_missing }}</textarea>
     {% if errors.get("whats_missing") %}<p class="field-error" id="whats_missing-error">{{ errors.whats_missing }}</p>{% endif %}
     <p class="muted small">Reviewers see these matches and your note.</p>
   </div>
@@ -52,5 +53,25 @@
   <p><strong>The reason:</strong> {{ a.reason }}</p>
   <div class="callout"><strong>What would change the answer:</strong> {{ a.what_would_change }}</div>
   <p class="match-links"><a href="/decided?q={{ a.title|urlencode }}#decision-{{ a.id }}">See it on Decided before</a></p>
+</article>
+{% endif %}
+{% if panel and panel.checked and not panel.error and panel.in_review %}
+{% set o = panel.in_review %}
+<article class="asked-card need-card" aria-labelledby="in-review-h">
+  <h3 id="in-review-h">{{ icon("inbox", 18) }}<span>Someone already asked for something like this. It's in review.</span></h3>
+  <div class="match-head">
+    <p style="margin:0"><strong>{{ o.title }}</strong></p>
+    {{ label(o.status) }}
+  </div>
+  {% if o.why %}<p class="small">{{ o.why }}</p>{% endif %}
+  <p class="small">If it's what you need, add yourself to it instead of starting a new request. You'll see the decision on My requests.</p>
+  <div class="need-row">
+    <div class="field" style="margin:0">
+      <label for="need_note">Anything different about what you need? (optional)</label>
+      <input type="text" id="need_note" name="need_note" maxlength="300" value="{{ f.need_note or '' }}">
+    </div>
+    <button type="submit" class="btn btn-secondary" formaction="/requests/{{ o.id }}/need-too" name="action" value="need"{% if read_only %} disabled aria-describedby="need-line"{% endif %}>I need this too</button>
+  </div>
+  {% if read_only %}<p class="muted small" id="need-line" style="margin:8px 0 0">{{ NEED_READONLY }}</p>{% endif %}
 </article>
 {% endif %}

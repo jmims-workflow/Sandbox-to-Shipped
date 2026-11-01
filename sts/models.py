@@ -18,11 +18,12 @@ INFO_KINDS: dict[str, str] = {
     "customer_contact": "Customer names or contact details",
     "deal_pricing": "Deal or pricing details",
     "internal_notes": "Internal notes only",
+    "sensitive_personal": "Sensitive personal information (student records, health details, government IDs)",
     "public_only": "Public information only",
 }
 CUSTOMER_INFO = {"customer_contact", "deal_pricing"}
 
-TEAMS = ["Marketing", "Sales", "Partnerships", "Customer success", "Support"]
+TEAMS = ["Marketing", "Sales", "Partnerships", "Customer success", "Support", "People"]
 
 HOW_OFTEN: dict[str, str] = {
     "every_day": "Every day",
@@ -37,7 +38,8 @@ WHO_USES: dict[str, str] = {
 }
 
 TOOL_STATUSES: dict[str, str] = {
-    "being_tried": "Being tried",
+    # Shown as "In pilot". The internal name stays being_tried.
+    "being_tried": "In pilot",
     "approved": "Approved",
     "approved_with_limits": "Approved with limits",
     "retired": "Retired",
@@ -67,9 +69,12 @@ OUTCOME_CHOICES: dict[str, str] = {
 
 SECURITY_CHECK: dict[str, str] = {
     "not_needed": "Not needed",
+    "passed": "Passed automatically",
     "needed": "Needed",
     "done": "Done",
 }
+# Security check values that count as covered (approval and Ship it allowed).
+SECURITY_COVERED = {"not_needed", "passed", "done"}
 
 # The ready to ship check: "Did the team keep using it?"
 KEPT_USING: dict[str, str] = {
@@ -81,9 +86,9 @@ KEPT_USING: dict[str, str] = {
 # Each tool's journey. Every event has a date and an optional note.
 JOURNEY_EVENTS: dict[str, str] = {
     "requested": "Requested",
-    "being_tried": "Started being tried",
+    "being_tried": "Pilot started",
     "security_done": "Security check done",
-    "extended": "Trial extended",
+    "extended": "Pilot extended",
     "shipped": "Shipped",
     "reviewed": "Reviewed",
     "retired": "Retired",
@@ -109,7 +114,7 @@ class Tool(SQLModel, table=True):
     replaced_by: Optional[str] = None
     from_request: Optional[str] = None
     owner_agreed: bool = True
-    # From the decision that created the tool: not_needed, needed or done.
+    # From the decision that created the tool: not_needed, passed, needed or done.
     security_check: str = "not_needed"
     trial_extended: bool = False
     # Answers recorded in the ready to ship check:
@@ -135,8 +140,14 @@ class Request(SQLModel, table=True):
     # Each match: {"tool_id", "confidence": "close"|"possible", "reason"}
     matches: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
     matches_seen: bool = True
-    # Claude's read: {"title", "bullets": [{"label", "text"}], "security_check_needed"}
+    # Claude's read: {"title", "bullets": [{"label", "text"}]}
     size_up: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    # Answers to "A few questions for security": {"sends_without_check", "keeps_elsewhere", "ai_service"}
+    security_answers: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    # The automatic security check, from security's rules: {"result": not_needed|passed|person, "reasons": [str]}
+    security_result: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    # People added with "I need this too". Each: {"name", "note", "date"}
+    needed_by: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
     copied_from: Optional[str] = None
     # Each question: {"text", "date", "handled"}
     questions: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))

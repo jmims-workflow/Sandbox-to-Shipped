@@ -4,6 +4,7 @@
 {% block content %}
 <h1>My requests</h1>
 <p class="page-intro">Everything you've asked for, newest first. Open one to see the decision and the reason.</p>
+{% if added %}<p class="notice notice-ok" role="status">You're added to “{{ added.title }}”. You'll see the decision here when it comes.</p>{% endif %}
 {% if items %}
 <ul class="list">
   {% for it in items %}
@@ -16,7 +17,25 @@
   </li>
   {% endfor %}
 </ul>
-{% else %}
+{% elif not also %}
 <div class="card"><p>You haven't asked for anything yet.</p><a class="btn" href="/">Request a tool</a></div>
+{% endif %}
+
+{% if also %}
+<section aria-labelledby="also-h" style="margin-top:32px">
+  <h2 id="also-h">Requests I need too</h2>
+  <p class="muted small">Requests someone else started that you said you need too. You'll see the decision here.</p>
+  <ul class="list">
+    {% for it in also %}
+    <li class="card list-item">
+      <div>
+        <h3><a href="/requests/{{ it.r.id }}">{{ it.r.title }}</a></h3>
+        <p class="muted small" style="margin:0">{% if it.d %}Decided {{ it.d.decided_at|date }}{% else %}Still in review{% endif %}</p>
+      </div>
+      {{ request_label(it.r, it.d) }}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
 {% endif %}
 {% endblock %}
