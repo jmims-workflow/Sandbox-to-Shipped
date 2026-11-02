@@ -120,7 +120,8 @@ def eval_matching(
 
     out = Path(out_dir) if out_dir else ev.RESULTS_DIR
     markdown, md, js = ev.evaluate(cases, runner, world, repeats=repeats, out_dir=out,
-                                   cases_hash=ev.case_file_hash(ev.CASES_PATH), today=date.today(),
+                                   cases_hash=ev.case_file_hash(ev.CASES_PATH),
+                                   cases_version=ev.case_file_version(ev.CASES_PATH), today=date.today(),
                                    progress=typer.echo)
     typer.echo(f"\nWrote {md} and {js}\n")
     typer.echo(markdown)

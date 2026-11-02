@@ -69,6 +69,8 @@ class Case(BaseModel):
 
 class CasesFile(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    # Raised whenever a label changes; each change is listed under "Label changes" in evals/README.md.
+    version: int = Field(ge=1)
     cases: list[Case] = Field(min_length=1)
 
 
@@ -100,6 +102,12 @@ def load_world(demo_dir: Optional[Path] = None, data: Optional[DemoData] = None)
 def case_file_hash(path: Path = CASES_PATH) -> str:
     """The first 12 characters of the file's SHA-256, so a report can be tied to one version of the set."""
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:12]
+
+
+def case_file_version(path: Path = CASES_PATH) -> int:
+    """The case set's version number, from the version field at the top of the file."""
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    return CasesFile.model_validate(raw).version
 
 
 def load_cases(path: Path = CASES_PATH, world: Optional[World] = None) -> list[Case]:
@@ -312,6 +320,9 @@ HOW_TO_READ = """## How to read this
 - A person still decides every request. A wrong suggestion costs the requester a look at a tool that doesn't fit, and the reviewer still checks."""
 
 
+LABEL_CHANGES_LINE = '- Label changes: see "Label changes" in evals/README.md for every label changed and why.'
+
+
 def _frac(n: int, d: int) -> str:
     return f"{n} of {d} ({round(100 * n / d)}%)" if d else "none"
 
@@ -320,8 +331,10 @@ def _pct(n: int, d: int) -> str:
     return f"{round(100 * n / d)}%" if d else "n/a"
 
 
-def report_path(out_dir: Path, kind: Kind, today: date) -> Path:
-    return Path(out_dir) / f"matching-{today.isoformat()}-{kind}.md"
+def report_path(out_dir: Path, kind: Kind, today: date, version: Optional[int] = None) -> Path:
+    """matching-<date>-v<version>-<kind>.md. Reports from before the case set had a version have no -v part."""
+    tag = f"v{version}-" if version is not None else ""
+    return Path(out_dir) / f"matching-{today.isoformat()}-{tag}{kind}.md"
 
 
 def find_baseline(out_dir: Path, cases_hash: str) -> Optional[dict]:
@@ -346,7 +359,8 @@ def _title(kind: Kind) -> str:
 
 
 def build_report(cases: list[Case], runs: list[CaseRun], summary: dict, *, kind: Kind, model: str,
-                 repeats: int, cases_hash: str, today: date, baseline: Optional[dict] = None) -> str:
+                 repeats: int, cases_hash: str, today: date, baseline: Optional[dict] = None,
+                 cases_version: Optional[int] = None) -> str:
     by_id = {c.id: c for c in cases}
     o = summary["overall"]
     lines = [f"# {_title(kind)}", ""]
@@ -355,7 +369,9 @@ def build_report(cases: list[Case], runs: list[CaseRun], summary: dict, *, kind:
         f"- Model: {model}",
         f"- Cases: {len(cases)}",
         f"- Repeats: {repeats}",
-        f"- Case set: evals/matching_cases.yaml, hash {cases_hash}",
+        f"- Case set: evals/matching_cases.yaml, "
+        f"{'version ' + str(cases_version) + ', ' if cases_version is not None else ''}hash {cases_hash}",
+        LABEL_CHANGES_LINE,
         "",
         "## Summary",
         "",
@@ -456,10 +472,11 @@ def build_report(cases: list[Case], runs: list[CaseRun], summary: dict, *, kind:
     return "\n".join(lines)
 
 
-def write_results(out_dir: Path, kind: Kind, today: date, markdown: str, payload: dict) -> tuple[Path, Path]:
+def write_results(out_dir: Path, kind: Kind, today: date, markdown: str, payload: dict,
+                  version: Optional[int] = None) -> tuple[Path, Path]:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    md = report_path(out_dir, kind, today)
+    md = report_path(out_dir, kind, today, version)
     js = md.with_suffix(".json")
     md.write_text(markdown, encoding="utf-8")
     js.write_text(json.dumps(payload, indent=1) + "\n", encoding="utf-8")
@@ -467,14 +484,14 @@ def write_results(out_dir: Path, kind: Kind, today: date, markdown: str, payload
 
 
 def evaluate(cases: list[Case], runner: Runner, world: World, *, repeats: int, out_dir: Path,
-             cases_hash: str, today: Optional[date] = None,
+             cases_hash: str, cases_version: Optional[int] = None, today: Optional[date] = None,
              progress: Optional[Callable[[str], None]] = None) -> tuple[str, Path, Path]:
     today = today or date.today()
     runs = run_all(cases, runner, world, repeats, progress)
     summary = summarize(cases, runs)
     baseline = None if runner.kind == "baseline" else find_baseline(out_dir, cases_hash)
     markdown = build_report(cases, runs, summary, kind=runner.kind, model=runner.model, repeats=repeats,
-                            cases_hash=cases_hash, today=today, baseline=baseline)
+                            cases_hash=cases_hash, today=today, baseline=baseline, cases_version=cases_version)
     payload = {
         "title": _title(runner.kind),
         "kind": runner.kind,
@@ -482,10 +499,11 @@ def evaluate(cases: list[Case], runner: Runner, world: World, *, repeats: int, o
         "model": runner.model,
         "repeats": repeats,
         "cases_hash": cases_hash,
+        "cases_version": cases_version,
         "cases": [c.model_dump() for c in cases],
         "runs": [r.to_dict() for r in runs],
         "summary": {k: v for k, v in summary.items() if k != "scored"},
         "scored": summary["scored"],
     }
-    md, js = write_results(out_dir, runner.kind, today, markdown, payload)
+    md, js = write_results(out_dir, runner.kind, today, markdown, payload, cases_version)
     return markdown, md, js
