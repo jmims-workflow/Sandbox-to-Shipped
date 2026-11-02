@@ -25,7 +25,7 @@
 {% if changed == "retired" %}<p class="notice notice-ok" role="status">{{ t.name }} is retired.</p>{% endif %}
 {% if changed == "edited" %}<p class="notice notice-ok" role="status">Changes saved.</p>{% endif %}
 {% if changed == "checked" %}<p class="notice notice-ok" role="status">Answers saved.</p>{% endif %}
-{% if changed == "security" %}<p class="notice notice-ok" role="status">Security check recorded.</p>{% endif %}
+{% if changed == "security" %}<p class="notice notice-ok" role="status">Security screening recorded.</p>{% endif %}
 {% if changed == "extended" %}<p class="notice notice-ok" role="status">Pilot extended to {{ t.trial_ends|date }}.</p>{% endif %}
 {% if changed == "reviewed" %}<p class="notice notice-ok" role="status">Marked as reviewed. Next review {{ t.next_review }}.</p>{% endif %}
 {% if error %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endif %}
@@ -78,16 +78,16 @@
       {% if t.security_check == "needed" %}
       <form method="post" action="/tools/{{ t.id }}/security" class="subform" novalidate>
         <fieldset class="plain">
-          <legend>Record the security check</legend>
+          <legend>Record the security screening</legend>
           <div class="field">
-            <label class="choice" style="padding-left:0"><input type="checkbox" id="security_done" name="security_done" value="yes"{% if posted.security_done == "yes" %} checked{% endif %}{{ described(errors, "security_done") }}> Security check done</label>
+            <label class="choice" style="padding-left:0"><input type="checkbox" id="security_done" name="security_done" value="yes"{% if posted.security_done == "yes" %} checked{% endif %}{{ described(errors, "security_done") }}> Security screening done</label>
             {{ field_error(errors, "security_done") }}
           </div>
           <div class="grid-2">
-            <div class="field"><label for="security_date">Date of the check</label><input type="date" id="security_date" name="security_date" max="{{ today.isoformat() }}" value="{{ posted.security_date or '' }}"{{ described(errors, "security_date") }}>{{ field_error(errors, "security_date") }}</div>
+            <div class="field"><label for="security_date">Date of the screening</label><input type="date" id="security_date" name="security_date" max="{{ today.isoformat() }}" value="{{ posted.security_date or '' }}"{{ described(errors, "security_date") }}>{{ field_error(errors, "security_date") }}</div>
             <div class="field"><label for="security_note">One-line note</label><input type="text" id="security_note" name="security_note" maxlength="300" value="{{ posted.security_note or '' }}"{{ described(errors, "security_note") }}>{{ field_error(errors, "security_note") }}</div>
           </div>
-          <button type="submit" class="btn btn-secondary"{% if demo %} disabled aria-describedby="ready-demo"{% endif %}>Record security check</button>
+          <button type="submit" class="btn btn-secondary"{% if demo %} disabled aria-describedby="ready-demo"{% endif %}>Record security screening</button>
         </fieldset>
       </form>
       {% endif %}

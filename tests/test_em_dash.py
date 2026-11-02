@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 EM_DASH = chr(0x2014)
 SKIP_DIRS = {".git", "data", "__pycache__", ".pytest_cache", ".venv", "node_modules"}
-BINARY = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".pyc", ".db", ".woff", ".woff2"}
+BINARY = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".pyc", ".db", ".woff", ".woff2", ".mp4", ".webm"}
 
 
 def test_no_em_dashes_anywhere():

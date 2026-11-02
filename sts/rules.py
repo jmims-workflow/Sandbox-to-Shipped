@@ -14,6 +14,7 @@ from typing import Any, Optional
 from urllib.parse import urlparse
 
 from .models import (
+    SCREENING_LABELS,
     CUSTOMER_INFO,
     INFO_KINDS,
     JOURNEY_EVENTS,
@@ -33,7 +34,7 @@ from .models import (
 YES_NO = ("yes", "no")
 APPROVALS = ("approve", "approve_with_limits")
 
-MSG_SECURITY = "Finish the security check before approving."
+MSG_SECURITY = "Finish the security screening before approving."
 MSG_SENDS_WARNING = "Northstar doesn't approve tools that send to customers on their own."
 MSG_STOPPED = "A tool the team stopped using isn't ready to ship. Extend the pilot or retire it."
 MSG_PASSED_ONLY = (
@@ -126,7 +127,7 @@ def prefill_checklist(request: Request) -> Checklist:
         security = {"not_needed": "not_needed", "passed": "passed"}.get(auto, "needed")
     elif request.size_up and request.size_up.get("security_check_needed"):
         security = "needed"
-    if any(e.get("label", "").startswith("Security check") for e in request.timeline):
+    if any(e.get("label", "").startswith(SCREENING_LABELS) for e in request.timeline):
         security = "done"
     return Checklist(
         already_exists="yes" if any(m["confidence"] == "close" for m in request.matches) else "",
@@ -192,7 +193,7 @@ def validate_decision(
     if c.uses_customer_details not in YES_NO:
         errors["uses_customer_details"] = "Answer whether it uses customer or deal details."
     if c.security_check not in SECURITY_CHECK:
-        errors["security_check"] = "Choose where the security check stands."
+        errors["security_check"] = "Choose where the security screening stands."
     elif c.security_check == "passed" and auto_result != "passed":
         errors["security_check"] = MSG_PASSED_ONLY
 
@@ -470,7 +471,7 @@ def ready_items(tool: Tool) -> list[ReadyItem]:
     return [
         ReadyItem("owner", "Owner agreed to own it", bool(tool.owner_agreed)),
         ReadyItem(
-            "security", "Security check done or not needed", tool.security_check in SECURITY_COVERED
+            "security", "Security screening done or not needed", tool.security_check in SECURITY_COVERED
         ),
         ReadyItem(
             "kept_using",
@@ -535,21 +536,21 @@ def record_security_check(tool: Tool, done: bool, on: Optional[date], note: str,
     if tool.status != "being_tried":
         raise ToolChangeError("Only a tool in pilot has a ready to ship check.")
     if tool.security_check != "needed":
-        raise ToolChangeError("The security check is already covered for this tool.")
+        raise ToolChangeError("The security screening is already covered for this tool.")
     note = one_line(note)
     errors: dict[str, str] = {}
     if not done:
-        errors["security_done"] = "Check \"Security check done\" to record it."
+        errors["security_done"] = "Check \"Security screening done\" to record it."
     if on is None:
-        errors["security_date"] = "Pick the date the check was done."
+        errors["security_date"] = "Pick the date the screening was done."
     elif on > today:
         errors["security_date"] = "The date can't be in the future."
     if not note:
-        errors["security_note"] = "Add a one-line note about the check."
+        errors["security_note"] = "Add a one-line note about the screening."
     elif len(note) > MAX_LINE:
         errors["security_note"] = f"Keep the note to one line, under {MAX_LINE} characters."
     if errors:
-        raise ToolChangeError("Please fix the security check below.", errors=errors)
+        raise ToolChangeError("Please fix the security screening below.", errors=errors)
     tool.security_check = "done"
     tool.ready_check = {**(tool.ready_check or {}), "security_date": on.isoformat(), "security_note": note}
     add_event(tool, "security_done", on, note)
@@ -721,7 +722,7 @@ def next_steps(request: Request, review_days: int, security_line: str) -> list[d
     auto = auto_security(request)
     days = f"{review_days} working day{'' if review_days == 1 else 's'}"
     return [
-        {"key": "security", "title": "Security check", "line": security_line,
+        {"key": "security", "title": "Security screening", "line": security_line,
          "status": "done" if auto in ("not_needed", "passed") else "next"},
         {"key": "reviewer", "title": "A reviewer decides",
          "line": f"Reviewers usually answer within {days}.", "status": "next", "current": True},

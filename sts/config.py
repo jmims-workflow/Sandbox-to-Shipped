@@ -34,12 +34,18 @@ class Settings:
     # Live preview limits on Claude calls.
     daily_claude_calls: int = 100
     visitor_claude_calls_per_hour: int = 10
+    # Development only: live mode with the stand-in Claude client in sts/fake_claude.py, so a run
+    # (such as the recorded walkthrough) is repeatable and needs no key. Refused in demo and
+    # preview, and refused when a real key is present.
+    fake_claude: bool = False
 
     @property
     def mode(self) -> str:
         """The mode the app actually runs in."""
         if self.requested_mode in ("live", "preview") and self.api_key:
             return self.requested_mode
+        if self.requested_mode == "live" and self.fake_claude:
+            return "live"
         return "demo"
 
     @property
@@ -53,7 +59,19 @@ class Settings:
     @property
     def fell_back(self) -> bool:
         """Live or preview was asked for but there is no key, so we run the demo."""
-        return self.requested_mode in ("live", "preview") and not self.api_key
+        return self.requested_mode in ("live", "preview") and not self.api_key and self.mode == "demo"
+
+    def startup_problem(self) -> str | None:
+        """A setting combination the app refuses to start with, as a message saying why."""
+        if not self.fake_claude:
+            return None
+        if self.requested_mode != "live":
+            return (f"STS_FAKE_CLAUDE is for development in live mode only, and STS_MODE is {self.requested_mode}. "
+                    "Unset STS_FAKE_CLAUDE, or set STS_MODE=live.")
+        if self.api_key:
+            return ("STS_FAKE_CLAUDE can't be used while ANTHROPIC_API_KEY is set, so a real key is never "
+                    "mixed with the stand-in. Unset one of them.")
+        return None
 
     @property
     def db_path(self) -> Path:
@@ -73,4 +91,9 @@ class Settings:
             pilot_slots=_int_env("STS_PILOT_SLOTS", 3) or 3,
             daily_claude_calls=_int_env("STS_DAILY_CLAUDE_CALLS", 100),
             visitor_claude_calls_per_hour=_int_env("STS_VISITOR_CLAUDE_CALLS_PER_HOUR", 10),
+            fake_claude=os.environ.get("STS_FAKE_CLAUDE", "").strip().lower() in ("1", "true", "yes"),
         )
+
+
+class StartupError(RuntimeError):
+    """The settings can't be used together. The message says why."""

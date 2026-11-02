@@ -11,7 +11,7 @@ from sts.rules import long_date
 from .conftest import DEMO_DIR, as_requester, as_reviewer, visible_text
 
 BANNED = ["intake", "triage", "ticket", "workflow", "governance", "PII", "LLM", "model", "prompt", "deny", "denied",
-          "being tried"]
+          "being tried", "security check"]
 REQUESTER_PAGES = ["/", "/requests", "/requests/r-1044", "/requests/r-1048", "/requests/r-1045", "/requests/r-1042",
                    "/requests/r-1041", "/requests/r-1043", "/tools", "/tools?status=all", "/tools/call-recap-writer",
                    "/tools/subject-line-tester", "/decided", "/how-it-works", "/?from=r-1044",

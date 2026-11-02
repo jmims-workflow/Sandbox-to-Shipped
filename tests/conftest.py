@@ -1,51 +1,16 @@
 from __future__ import annotations
 
 import re
-from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
 from sts.config import ROOT, Settings
-from sts.provider import ClaudeProvider, DraftReason, MatchResult, SizeUp
+from sts.fake_claude import DEFAULT_OUTPUTS, FakeMessages, fake_client  # noqa: F401 (tests import these from here)
+from sts.provider import ClaudeProvider
 from sts.web import create_app
 
 DEMO_DIR = ROOT / "demo"
-
-
-class FakeMessages:
-    """Stands in for client.beta.messages. Returns canned structured output."""
-
-    def __init__(self, outputs):
-        self.outputs = outputs
-        self.calls = []
-
-    def parse(self, **kwargs):
-        self.calls.append(kwargs)
-        shape = kwargs["output_format"]
-        value = self.outputs[shape.__name__]
-        parsed = value(kwargs) if callable(value) else value
-        return SimpleNamespace(stop_reason="end_turn", parsed_output=parsed)
-
-
-def fake_client(outputs):
-    msgs = FakeMessages(outputs)
-    return SimpleNamespace(beta=SimpleNamespace(messages=msgs)), msgs
-
-
-DEFAULT_OUTPUTS = {
-    "MatchResult": MatchResult.model_validate(
-        {"matches": [{"tool_id": "call-recap-writer", "confidence": "close", "reason": "It writes follow-up emails."}]}
-    ),
-    "SizeUp": SizeUp.model_validate(
-        {
-            "title": "Short follow-up emails",
-            "bullets": [{"label": "Closest match", "text": "Call Recap Writer."}, {"label": "Worth asking", "text": "How often?"}],
-            "security_check_needed": False,
-        }
-    ),
-    "DraftReason": DraftReason(reason="Drafted reason text.", what_would_change="Drafted change text."),
-}
 
 
 @pytest.fixture

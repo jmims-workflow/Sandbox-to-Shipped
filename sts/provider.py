@@ -151,7 +151,7 @@ Your job: give the reviewer a quick read of the request. Suggest a short title
 four words) and one or two sentences. Cover: the closest existing tool and any
 gap between it and the request; what information the request touches and
 whether anything would go to customers without a person checking; and one thing
-worth asking the requester. Do not say whether a security check is needed:
+worth asking the requester. Do not say whether security screening is needed:
 security's own rules decide that, and the reviewer sees the result separately.
 If you are not sure about something, say so."""
 

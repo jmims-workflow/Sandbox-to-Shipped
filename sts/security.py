@@ -31,15 +31,15 @@ NOT_SURE = "not_sure"
 OTHER_SERVICES: dict[str, str] = {SOMETHING_ELSE: "Something else", NOT_SURE: "Not sure"}
 
 RESULTS: dict[str, str] = {
-    "not_needed": "Security check: not needed",
-    "passed": "Security check: passed automatically against security's rules",
-    "person": "Security check: a person from security will review this",
+    "not_needed": "Security screening: not needed",
+    "passed": "Security screening: passed automatically against security's rules",
+    "person": "Security screening: a person from security will review this",
 }
 # The reviewer checklist value each result fills in.
 CHECKLIST_VALUE = {"not_needed": "not_needed", "passed": "passed", "person": "needed"}
 
 LEVELS: dict[str, str] = {
-    "none": "No security check",
+    "none": "No security screening",
     "automatic": "Checked automatically against security's rules",
     "person": "Always reviewed by a person on the security team",
 }

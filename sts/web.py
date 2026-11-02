@@ -13,10 +13,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import APP_NAME, TAGLINE
-from .config import ROOT, Settings
+from .config import ROOT, Settings, StartupError
 from .demo_data import load_demo_data
 from .matching import clean_matches, clean_related
 from .models import (
+    SCREENING_LABELS,
     HOW_OFTEN,
     INFO_KINDS,
     JOURNEY_EVENTS,
@@ -156,6 +157,9 @@ def join_words(items: list[str]) -> str:
 def create_app(settings: Optional[Settings] = None, provider: Any = None) -> FastAPI:
     """Build the app. Tests may pass a provider; otherwise the mode picks one."""
     settings = settings or Settings.from_env()
+    problem = settings.startup_problem()
+    if problem:
+        raise StartupError(problem)
     # Security's rules are checked at startup. A problem stops the app with a message naming the line.
     rules = load_security_rules(settings.security_rules_path)
     demo = load_demo_data(settings.demo_dir, rules=rules)
@@ -163,6 +167,11 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
     limiter = None
     if settings.is_live:
         store: Any = LiveStore(settings.data_dir)
+        if provider is None and settings.fake_claude:
+            # Development only, checked above: no key and no network.
+            from .fake_claude import fake_client
+
+            provider = ClaudeProvider("", settings.model, client=fake_client()[0])
         provider = provider or ClaudeProvider(settings.api_key, settings.model)
     elif settings.is_preview:
         # Real Claude for three features, nothing saved, within the daily and per-visitor limits.
@@ -282,7 +291,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             path=req.url.path,
         )
 
-    def render(req: HTTPRequest, name: str, current: str, status_code: int = 200, **ctx):
+    def render(req: HTTPRequest, template_name: str, current: str, /, status_code: int = 200, **ctx):
         base = dict(
             settings=settings,
             mode=settings.mode,
@@ -297,7 +306,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             now=store.now(),
         )
         base.update(ctx)
-        return templates.TemplateResponse(req, name, base, status_code=status_code)
+        return templates.TemplateResponse(req, template_name, base, status_code=status_code)
 
     def tool_map() -> dict[str, Tool]:
         return {t.id: t for t in store.list_tools()}
@@ -959,7 +968,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
     def queue_line(r: Request, now: datetime) -> str:
         n = days_between(r.submitted_at, now)
         when = "Submitted today" if n <= 0 else ("Yesterday" if n == 1 else f"{n} days ago")
-        security_done = any(e["label"].startswith("Security check") for e in r.timeline)
+        security_done = any(e["label"].startswith(SCREENING_LABELS) for e in r.timeline)
         auto = auto_security(r)
         if any(not q.get("handled") for q in r.questions):
             note = "Has a question about the decision."
@@ -967,9 +976,9 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             note = "A person from security will review this."
         elif r.status != "decided" and not auto and r.size_up and r.size_up.get("security_check_needed") \
                 and not security_done:
-            note = "Needs a security check."
+            note = "Needs a security screening."
         elif r.status != "decided" and auto == "passed" and not r.matches:
-            note = "Security check passed automatically."
+            note = "Security screening passed automatically."
         elif any(m["confidence"] == "close" for m in r.matches):
             note = "Close match found."
         elif r.matches:
@@ -1237,9 +1246,9 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         if not any(e["label"] == "Reviewer picked it up" for e in timeline):
             timeline.append({"label": "Reviewer picked it up", "date": today})
         if form.checklist.security_check == "done" and not any(
-            e["label"].startswith("Security check") for e in timeline
+            e["label"].startswith(SCREENING_LABELS) for e in timeline
         ):
-            timeline.append({"label": "Security check done", "date": today})
+            timeline.append({"label": "Security screening done", "date": today})
         timeline.append({"label": "Decided again" if r.status == "decided" else "Decided", "date": today})
         r.timeline = timeline
         r.status = "decided"

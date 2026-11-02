@@ -40,7 +40,7 @@ def test_translation_helper_shows_2_of_4_ready_with_ship_it_disabled(demo_client
     assert "disabled" in ship_button(html)
     assert "Ship it opens when all 4 items are ready." in html
     text = text_of(html)
-    for item in ["Owner agreed to own it", "Security check done or not needed", "The team kept using it",
+    for item in ["Owner agreed to own it", "Security screening done or not needed", "The team kept using it",
                  "How it was tested"]:
         assert item in text
     assert html.count("<span>Not done</span>") == 2 and html.count("<span>Done</span>") == 2
@@ -317,7 +317,7 @@ def test_live_security_check_recorded_on_the_tool(live_app, live_client):
     tool.security_check = "needed"
     store.save(tool)
     html = live_client.get("/tools/translation-helper").text
-    assert "1 of 4 ready" in html and "Record the security check" in html
+    assert "1 of 4 ready" in html and "Record the security screening" in html
     r = live_client.post("/tools/translation-helper/security", data={"security_date": TODAY.isoformat()})
     assert r.status_code == 400
     live_client.post("/tools/translation-helper/security", data={

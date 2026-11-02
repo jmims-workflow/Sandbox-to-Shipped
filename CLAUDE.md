@@ -4,7 +4,7 @@ Notes for future sessions working on Sandbox to Shipped.
 
 ## What this is
 
-Sandbox to Shipped ("One front door for AI tool requests.") is a FastAPI web app where anyone at a company asks for an AI tool, sees whether an approved tool already does the job, and later sees the decision with a plain reason. Reviewers work one queue with a short checklist and a reason Claude drafts for them to edit. Everyday security checks run automatically against rules the security team writes. Approved tools start as a pilot and get shipped to approved.
+Sandbox to Shipped ("One front door for AI tool requests.") is a FastAPI web app where anyone at a company asks for an AI tool, sees whether an approved tool already does the job, and later sees the decision with a plain reason. Reviewers work one queue with a short checklist and a reason Claude drafts for them to edit. Everyday security screening runs automatically against rules the security team writes. Approved tools start as a pilot and get shipped to approved.
 
 Users: requesters (marketers, sellers, support staff; non-engineers), reviewers (the AI tools lead, plus security when the rules send a request to a person), the security team (owns `security_rules.yaml`), and tool owners.
 
@@ -32,16 +32,19 @@ sts check-data
 - Live preview (`STS_MODE=preview` plus `ANTHROPIC_API_KEY`) is for the public site: the demo store (nothing saved, saving buttons off with a one-line reason) with real Claude for exactly three features: the match check (including Asked before and the in-review match), Claude's read on the reviewer view of a just-sent request ("See this request the way a reviewer would", `POST /review/sample`) and "Draft the reason for me". Opening a page never calls Claude, and sending a request in demo or preview doesn't ask for Claude's read. Limits: `STS_DAILY_CLAUDE_CALLS` (default 100, resets at midnight UTC) and `STS_VISITOR_CLAUDE_CALLS_PER_HOUR` (default 10, keyed by a salted hash of the visitor address). Over a limit, or if Claude can't answer, it uses the demo results and shows "Today's live checks are used up, so you're seeing the sample version." Never an error page. Counts are in memory per server, so Cloud Run uses `--max-instances 1`. Preview or live without a key falls back to demo with a notice.
 - Live mode needs `STS_MODE=live` and `ANTHROPIC_API_KEY`. Data goes to `DATA_DIR/sts.db`. `sts seed --reset` loads the demo data.
 - `STS_REVIEW_DAYS` (default 5) sets "Reviewers usually answer within 5 working days." `STS_PILOT_SLOTS` (default 3) sets how many tools can be in pilot at once. Every setting is in `.env.example`.
-- Deploys go to Google Cloud Run (see the README). The container doesn't keep files, so the public site never runs live mode.
+- Deploys go to Google Cloud Run (see docs/deploy.md). The container doesn't keep files, so the public site never runs live mode.
 - Screenshots: start the app in demo mode, then `node scripts/screenshots.js`.
+- `STS_FAKE_CLAUDE=1` is development only: live mode uses the stand-in client in `sts/fake_claude.py` (the same one the tests use), with no key and no network calls. `Settings.startup_problem()` in `sts/config.py` makes the app (and `sts serve` / `sts seed`) refuse to start, saying why, when it is set with `STS_MODE` demo or preview, or when `ANTHROPIC_API_KEY` is set. Never mention it in the app's pages. Keep tests in tests/test_fake_claude.py in step.
+- Recorded walkthrough: `node scripts/walkthrough.js` starts its own app (live, `STS_FAKE_CLAUDE=1`, a fresh temporary DATA_DIR seeded with the demo data, `STS_PILOT_SLOTS=4`), records the full journey with caption bars the script adds, and saves `docs/walkthrough.mp4` and `docs/walkthrough.gif` (under 10 MB, with ffmpeg). Never run it in GitHub Actions. Rerun it when a step it shows changes.
 
 ## Layout
 
 - `sts/provider.py`: every Claude call. Keep all Claude calls here.
 - `sts/rules.py`: checklist and decision rules, ready to ship, I need this too. `sts/matching.py`: match validation and the demo word match.
-- `sts/security.py` and `security_rules.yaml`: the automatic security check. See "Security rules" below.
+- `sts/security.py` and `security_rules.yaml`: automatic security screening (internally the security check). See "Security rules" below.
 - `sts/store.py`: DemoStore (read only) and LiveStore (SQLite). `sts/web.py`: routes. `templates/`, `static/`.
 - `demo/`: `tools.yaml`, `requests.yaml`, `examples.yaml` (the three "Try an example" buttons, with recorded results for tasks that aren't demo requests), `recorded/<request-id>.json`. Every demo date is stored as an offset from today ("today", "3 days ago", "in 2 weeks", "last month"), never a fixed date, so the demo always looks current. Demo "today" is the real date. `tests/test_demo_data.py` checks this.
+- `docs/`: `design.md` (every principle and Why standards), `architecture.md` (the full Under the hood, Claude calls, rules and data model), `testing.md`, `deploy.md` (Cloud Run, key rotation), `configuration.md` (the settings table), `production.md` (the production path, marked not built), `try-it.md` (what to try on the live site), the walkthrough and `screenshots/`. The README stays short (about 900 words of prose, under 1,000, not counting My role and Part of a set); put detail in docs/ and link to it with relative links. The opening, My role and Part of a set are word for word; tests/test_readme.py checks them, the word count and every relative link.
 - `sts/store.py` `LiveStore.upgrade()`: adds new columns (tool, request and decision tables) to an older live database on startup and builds journeys for existing tools. Add any new column there too.
 
 ## Decision rules (keep tests in tests/test_rules.py in step)
@@ -49,8 +52,8 @@ sts check-data
 - A decision needs an outcome, a reason and what would change the answer.
 - use_existing needs an existing, non-retired tool.
 - approve_with_limits needs the limits text.
-- The checklist's security item is Not needed, Passed automatically, Needed or Done, prefilled from the request's automatic security check. "Passed automatically" is only accepted for requests that passed; a reviewer can always change it to Needed.
-- approve and approve_with_limits are blocked while the security check is "Needed": "Finish the security check before approving."
+- The checklist's security screening item is Not needed, Passed automatically, Needed or Done, prefilled from the request's automatic security screening. "Passed automatically" is only accepted for requests that passed; a reviewer can always change it to Needed.
+- approve and approve_with_limits are blocked while security screening is "Needed": "Finish the security screening before approving."
 - approve and approve_with_limits need the owner agreement checkbox. New tools always start as a pilot (being_tried).
 - "Send without a person checking" = Yes shows a warning, never a block: "Northstar doesn't approve tools that send to customers on their own."
 - Ship it: pilot (being_tried) to approved or approved_with_limits. Retire: any status, replacement optional. Reviewers only.
@@ -60,7 +63,7 @@ sts check-data
 
 - The form starts empty in every mode. "Not sure what to write? Try an example:" has three links (`/?example=<key>`) that fill the whole form: Follow-up emails, Auto-reply to demo requests, Social posts from case studies. They work without JavaScript.
 - The panel is "You may already have what you need". Each match card leads with the outcome: "Claude thinks <tool> is a close match for what you described." (or "...a possible match... Claude is less sure."). The tool link is "Try it before you submit".
-- "Here's what happens next": live heading "Request sent"; demo and preview "Here's what would happen next" plus "This is the demo, so nothing was saved." Three steps with status words and icons (Done, Next, Later): Security check (this request's result, from `requester_line()` in `sts/security.py`, code only), A reviewer decides (STS_REVIEW_DAYS, current step), You get a decision. Then "Your request". Demo and preview only: "See this request the way a reviewer would".
+- "Here's what happens next": live heading "Request sent"; demo and preview "Here's what would happen next" plus "This is the demo, so nothing was saved." Three steps with status words and icons (Done, Next, Later): Security screening (this request's result, from `requester_line()` in `sts/security.py`, code only), A reviewer decides (STS_REVIEW_DAYS, current step), You get a decision. Then "Your request". Demo and preview only: "See this request the way a reviewer would".
 - Requesters never see Claude's read. It shows only in the review queue.
 
 ## Pilot slots and Not now (keep tests in tests/test_pilot_slots.py and tests/test_not_now.py in step)
@@ -77,7 +80,7 @@ sts check-data
 
 - A pilot's page shows reviewers "Ready to ship?" with four items, each done or not done, and a count such as "2 of 4 ready":
   - Owner agreed to own it: from the owner agreement recorded at approval.
-  - Security check done or not needed: from the decision that created the tool. Passed automatically counts as done. If needed and not done, the reviewer records it on the tool (checkbox, date, one-line note).
+  - Security screening done or not needed: from the decision that created the tool. Passed automatically counts as done. If needed and not done, the reviewer records it on the tool (checkbox, date, one-line note).
   - The team kept using it: "Did the team keep using it?" (Yes, regularly / Some of the time / No) plus "Anything go wrong?" (required; "Nothing" is fine). Done only for Yes, regularly or Some of the time.
   - How it was tested: required short answer, optional test results link (http or https only).
 - Ship it stays disabled until all four are done, enforced on the server in `ship_tool()`.
@@ -87,8 +90,8 @@ sts check-data
 - Pilot ended: in pilot and end date before today (shown to everyone). Review due: approved and next review month before this month (reviewers only). Both appear (with Not now revisits) under "Needs a decision" on the Review queue and count in the sidebar badge with waiting requests.
 - Mark reviewed asks "Still in use?" and "Anything to change?" and sets the next review six months later by default.
 - Every change adds a journey event: requested, being_tried, security_done, extended, shipped, reviewed, retired.
-- Asked before: the match call may return one past decision id. Send past decisions without requester names; drop any id not in the list sent.
-- Demo and preview modes disable Ship it, Extend, Retire, Mark reviewed, recording a security check, saving answers, Send decision, Save for later, Reopen it, questions and I need this too, with a one-line reason.
+- Asked before: the match call may return one past decision id. Send past decisions with requester names omitted; drop any id not in the list sent.
+- Demo and preview modes disable Ship it, Extend, Retire, Mark reviewed, recording a security screening, saving answers, Send decision, Save for later, Reopen it, questions and I need this too, with a one-line reason.
 
 ## Pilot wording
 
@@ -102,7 +105,7 @@ sts check-data
 - It is validated with Pydantic at startup; a problem stops the app with a message naming the field. `sts check-data` checks it too.
 - Any information kind other than public_only shows "A few questions for security": sends without a person checking (Yes/No/Not sure), keeps information outside approved tools (Yes/No/Not sure), which AI service (approved services, Something else, Not sure). Answers are required then.
 - `check_security()` in `sts/security.py`, plain code, Claude never involved: only public information is "not needed"; any sensitive_personal goes to a person whatever the answers; otherwise it passes only when both answers are No and the service is approved; any Yes, Not sure or unapproved service goes to a person, and the reasons name each answer that did.
-- The result is saved on the request (`security_answers`, `security_result`), shown in the review queue and fills the checklist.
+- The result is saved on the request (`security_answers`, `security_result`), shown in the review queue and fills the checklist. Request timelines label it "Security screening done"; older databases say "Security check done", and `SCREENING_LABELS` in `sts/models.py` counts both.
 - Early warnings on Request a tool come from rules in code (`early_warnings()`), never from Claude, never a score or prediction, and never block submitting.
 
 ## I need this too (keep tests in tests/test_need_too.py in step)
@@ -115,13 +118,16 @@ sts check-data
 
 Use: request, tool, reviewer, decision, pilot, not approved as requested, what would change the answer.
 
-Never show in the interface: intake, triage, ticket, workflow, governance, PII, LLM, model, prompt, deny, denied, being tried. They're fine in code, file formats and the README's "Under the hood" section. A test renders every page and checks this.
+Never show in the interface: intake, triage, ticket, workflow, governance, PII, LLM, model, prompt, deny, denied, being tried, security check. They're fine in code, file formats and the "Under the hood" section of docs/architecture.md. A test renders every page and checks this.
+
+- Security screening: everything a user sees, plus the README, docs and this file, calls the security step "security screening" ("Security screening: passed automatically against security's rules", "Security screening: a person from security will review this", "Security screening done or not needed"). Internal names stay: `security_check`, `security_answers`, `security_result`, `check_security()`, `record_security_check()`.
+- Decided before and past decisions: say "requester names omitted". Never say or imply decisions are anonymous; titles, tasks and reasons are visible to everyone.
 
 ## Project rules
 
 - A person always decides. Claude never sets an outcome; Claude's response shapes have no outcome field.
-- Warnings and the security check come from code, never from Claude.
-- Requester names never appear on Decided before.
+- Warnings and security screening come from code, never from Claude.
+- Requester names never appear on Decided before (requester names omitted; titles, tasks and reasons are visible).
 - Browser first: never require files, Git or a terminal for the main flow.
 - Fictional data only (Northstar Systems, FlowOS, Connect, Insight).
 - Demo mode must always work with no key.
