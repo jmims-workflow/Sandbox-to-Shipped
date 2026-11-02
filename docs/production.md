@@ -38,8 +38,8 @@ For each item: what the prototype does today, what a production deployment needs
 
 ## 6. Measuring the AI
 
-- **Today:** The tests use a stand-in for Claude, so they show the rules and storage work, not how good Claude's matches are. Code already drops any tool or decision id Claude returns that wasn't in the list it was sent.
-- **Production needs:** A labeled evaluation of matching quality (requests paired with the tools and past decisions that should match), run against the real model on a schedule and kept separate from the unit tests, with results tracked over time.
+- **Today:** The tests use a stand-in for Claude, so they show the rules and storage work, not how good Claude's matches are. Code already drops any tool or decision id Claude returns that wasn't in the list it was sent. A labeled evaluation of matching quality is built ([evals/README.md](../evals/README.md)): about 30 requests paired with the tools, past decisions and open requests that should match, run by hand with `sts eval-matching` and compared with the simple word match.
+- **Production needs:** Running that evaluation on a schedule against the real model, after every change to the model or the matching instructions, with results tracked over time and a larger set drawn from real requests.
 - **Why:** The match check is the first thing a requester sees. If it gets worse after a model or instruction change, people stop trusting it, and nobody would know without a measurement.
 
 ## 7. Keys and cost

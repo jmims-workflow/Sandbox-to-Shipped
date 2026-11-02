@@ -730,3 +730,37 @@ def next_steps(request: Request, review_days: int, security_line: str) -> list[d
          "line": "You'll see the decision, the reason and what would change the answer on My requests.",
          "status": "later"},
     ]
+
+
+# ---- What the match check sends to Claude ---------------------------------------------
+
+
+def open_requests_for_match(store: Any, name: str) -> list[dict]:
+    """Requests still waiting or in review, for "I need this too". Never includes who asked.
+
+    The person's own requests, and requests they are already on, are left out. The web app and
+    the matching evaluation both use this, so the evaluation sends what the app sends.
+    """
+    out = []
+    latest = latest_decisions(store.list_decisions())
+    for r in sorted(store.list_requests(), key=lambda r: r.submitted_at, reverse=True):
+        # Not now requests still count demand, so people can join them too.
+        if (r.status not in OPEN_STATUSES and not is_not_now(r, latest.get(r.id))) or r.requester_name == name:
+            continue
+        if any(p.get("name") == name for p in r.needed_by or []):
+            continue
+        out.append({"id": r.id, "title": r.title, "task": r.task})
+    return out[:40]
+
+
+def past_decisions_for_match(store: Any) -> list[dict]:
+    """Decided requests for Asked before. Never includes who asked."""
+    requests = {r.id: r for r in store.list_requests()}
+    out = []
+    for d in sorted(latest_decisions(store.list_decisions()).values(), key=lambda d: d.decided_at, reverse=True):
+        r = requests.get(d.request_id)
+        if r is None or r.status != "decided":
+            continue
+        out.append({"id": r.id, "title": r.title, "task": r.task, "outcome": d.outcome,
+                    "reason": d.reason, "what_would_change": d.what_would_change})
+    return out[:40]
