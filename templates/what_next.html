@@ -1,31 +1,50 @@
 {% extends "base.html" %}
-{% block title %}Here's what happens next | {% endblock %}
-{% from "macros.html" import icon %}
+{% from "macros.html" import icon, request_details %}
+{% block title %}{{ "Request sent" if mode == "live" else "Here's what would happen next" }} | {% endblock %}
 {% block content %}
-<h1>Here's what happens next</h1>
-<p class="page-intro">This is your request as a reviewer would see it. A reviewer reads it, works through a short checklist and sends a decision with a reason you can see on My requests.</p>
-{% if mode == "preview" %}
-<p class="notice notice-info" role="status">This is the live preview, so nothing was saved. Live mode saves your request and puts it in the review queue.</p>
+{# The requester's side only. Claude's read is for reviewers and never appears on this page. #}
+{% if mode == "live" %}
+<h1>Request sent</h1>
 {% else %}
-<p class="notice notice-info" role="status">This is the demo, so nothing was saved. Live mode saves your request and puts it in the review queue.</p>
+<h1>Here's what would happen next</h1>
+<p class="page-intro">This is the demo, so nothing was saved.</p>
 {% endif %}
-<div class="two-col wide-right">
-  <div class="stack">
-    {% include "partials/request_card.html" %}
-    {% if r.whats_missing %}<div class="card"><h3>What's missing, in their words</h3><p style="margin:0">{{ r.whats_missing }}</p></div>{% endif %}
-  </div>
-  <div class="stack">
-    {% include "partials/claude_read.html" %}
-    <div class="card">
-      <h2>Then</h2>
-      <ol style="margin:0 0 12px;padding-left:20px">
-        <li>A reviewer picks it up and checks it against what we already have.</li>
-        <li>If it uses customer or company information, it's checked against security's rules. Sensitive personal information always goes to a person on the security team.</li>
-        <li>You get a decision, a plain reason and what would change the answer.</li>
-      </ol>
-      <p style="margin:0">{{ icon("clock", 18) }} Reviewers usually answer within {{ REVIEW_DAYS }} working day{{ "" if REVIEW_DAYS == 1 else "s" }}.</p>
-    </div>
-    <p><a href="/" class="btn btn-secondary">Back to Request a tool</a></p>
-  </div>
+{% if sizeup_note %}<p class="notice notice-warn" role="status">Claude couldn't size up this request, so the reviewer will read it as is. That's fine.</p>{% endif %}
+
+<section class="card" aria-labelledby="steps-h">
+  <h2 id="steps-h">What happens next</h2>
+  <ol class="steps">
+    {% for s in steps %}
+    {% set icons = {"done": "check", "next": "arrow", "later": "circle"} %}
+    <li class="step-item is-{{ s.status }}"{% if s.current %} aria-current="step"{% endif %}>
+      <span class="step-status">{{ icon(icons[s.status], 18) }}<span>{{ STEP_STATUSES[s.status] }}</span></span>
+      <div>
+        <h3>{{ s.title }}</h3>
+        <p>{{ s.line }}</p>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+
+<section class="card" aria-labelledby="yours-h">
+  <h2 id="yours-h">Your request</h2>
+  <p>{{ r.task }}</p>
+  {{ request_details(r) }}
+</section>
+
+{% if mode != "live" and f %}
+<form method="post" action="/review/sample" class="reviewer-view">
+  {% for key in ("task", "team", "how_often", "who_uses", "extra", "whats_missing") %}<input type="hidden" name="{{ key }}" value="{{ f[key] }}">
+  {% endfor %}{% for i in f.info %}<input type="hidden" name="info" value="{{ i }}">
+  {% endfor %}{% for key, value in f.answers.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">
+  {% endfor %}<input type="hidden" name="matches_json" value="{{ r.matches|tojson|forceescape }}">
+  <button type="submit" class="link-button">{{ icon("checklist", 18) }}<span>See this request the way a reviewer would</span></button>
+</form>
+{% endif %}
+
+<div class="btn-row">
+  <a href="/" class="btn btn-secondary">Back to Request a tool</a>
+  <a href="/requests" class="btn">Go to My requests</a>
 </div>
 {% endblock %}

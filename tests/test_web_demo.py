@@ -16,11 +16,14 @@ REQUESTER_PAGES = ["/", "/requests", "/requests/r-1044", "/requests/r-1048", "/r
                    "/requests/r-1041", "/requests/r-1043", "/tools", "/tools?status=all", "/tools/call-recap-writer",
                    "/tools/subject-line-tester", "/decided", "/how-it-works", "/?from=r-1044",
                    "/tools/webinar-invite-writer", "/tools/partner-outreach-drafts", "/tools/translation-helper",
-                   "/tools/proposal-drafter"]
+                   "/tools/proposal-drafter", "/?example=follow-up-emails", "/?example=auto-reply",
+                   "/?example=social-posts", "/requests/r-1050", "/requests/r-1051", "/decided?outcome=not_now",
+                   "/tools/event-follow-up-notes"]
 REVIEWER_PAGES = ["/review", "/review/r-1046", "/review/r-1047", "/review/r-1049", "/review/r-1044", "/review/r-1045",
                   "/tools/translation-helper", "/tools/proposal-drafter/edit", "/decided",
                   "/tools/partner-outreach-drafts", "/tools/proposal-drafter", "/tools/webinar-invite-writer",
-                  "/tools/call-recap-writer", "/tools/subject-line-tester", "/tools", "/how-it-works"]
+                  "/tools/call-recap-writer", "/tools/subject-line-tester", "/tools", "/how-it-works",
+                  "/review/r-1050", "/review/r-1051"]
 
 
 def test_health(demo_client):
@@ -28,12 +31,11 @@ def test_health(demo_client):
     assert r.status_code == 200 and r.text == "ok"
 
 
-def test_home_shows_call_recap_writer_as_close_match_for_the_example(demo_client):
-    html = demo_client.get("/").text
-    assert "Call Recap Writer" in html
-    assert "Close match. Claude is fairly sure." in html
+def test_follow_up_example_shows_call_recap_writer_as_close_match(demo_client):
+    html = demo_client.get("/?example=follow-up-emails").text
+    assert "Claude thinks <strong>Call Recap Writer</strong> is a close match for what you described." in html
     assert "Claude only suggests. A person reviews every request." in html
-    assert "turn my notes into a follow-up email" in html  # prefilled example
+    assert "turn my notes into a follow-up email" in html  # the example's task
 
 
 def test_other_text_uses_word_match_with_label(demo_client):
@@ -49,7 +51,7 @@ def test_nothing_matches_message(demo_client):
 
 def test_possible_match_is_labeled_less_sure(demo_client):
     r = demo_client.post("/", data={"action": "check", "task": "Write a reminder for an event"})
-    if "Possible match" in r.text:
+    if "a possible match for what you described" in r.text:
         assert "Claude is less sure" in r.text
 
 
@@ -133,7 +135,7 @@ def test_decided_before_filters(demo_client):
 
 def test_inventory_filters_and_count(demo_client):
     html = demo_client.get("/tools").text
-    assert "Showing 8 of 9 tools. 6 ready to use, 2 in pilot." in html
+    assert "Showing 9 of 10 tools. 6 ready to use, 3 in pilot." in html
     assert "Subject Line Tester" not in html
     html = demo_client.get("/tools?status=all").text
     assert "Subject Line Tester" in html
@@ -178,9 +180,9 @@ def test_submit_in_demo_shows_what_happens_next(demo_client):
     r = demo_client.post("/", data={"task": "Write invite and reminder emails for a webinar", "team": "Marketing",
                                     "how_often": "few_month", "who_uses": "my_team", "info": "public_only"})
     assert r.status_code == 200
-    assert "Here&#39;s what happens next" in r.text or "Here's what happens next" in r.text
-    assert "nothing was saved" in r.text
-    assert "Claude" in r.text
+    assert "Here&#39;s what would happen next" in r.text or "Here's what would happen next" in r.text
+    assert "This is the demo, so nothing was saved." in r.text
+    assert "See this request the way a reviewer would" in r.text
 
 
 @pytest.mark.parametrize("viewer,pages", [("requester", REQUESTER_PAGES), ("reviewer", REVIEWER_PAGES)])
@@ -203,6 +205,11 @@ def test_no_banned_words_in_review_states(demo_client):
                                     "how_often": "few_month", "who_uses": "my_team", "info": "public_only"}),
         demo_client.post("/", data={"action": "check", "task": "auto-reply to demo requests"}),
         demo_client.post("/tools/translation-helper/ship", data={"to_status": "approved"}),
+        demo_client.post("/review/r-1048", data={"action": "send", "outcome": "not_now"}),
+        demo_client.post("/review/r-1048", data={"action": "draft", "outcome": "not_now"}),
+        demo_client.post("/review/sample", data={"task": "Write invite and reminder emails for a webinar",
+                                                 "team": "Marketing", "how_often": "few_month", "who_uses": "my_team",
+                                                 "info": "public_only"}),
     ]
     for r in pages:
         text = visible_text(r.text)

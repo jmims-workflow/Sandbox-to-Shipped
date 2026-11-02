@@ -5,6 +5,15 @@
 <h1>Request a tool</h1>
 <p class="page-intro">Tell us what you're trying to do. We'll check what already exists before anyone builds something new.</p>
 
+{% if examples %}
+<div class="example-row">
+  <p id="examples-h">Not sure what to write? Try an example:</p>
+  <ul aria-labelledby="examples-h">
+    {% for e in examples %}<li><a class="btn btn-secondary" href="/?example={{ e.key }}">{{ e.label }}</a></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 {% if notice %}<p class="notice notice-info" role="status">{{ notice }}</p>{% endif %}
 {% if need_error %}<p class="notice notice-warn" role="alert">{{ need_error }}</p>{% endif %}
 {% if errors %}
@@ -121,7 +130,7 @@
   </div>
 
   <div>
-    <section class="card match-panel" id="match-panel" aria-live="polite" aria-busy="false" aria-label="You may already have this">
+    <section class="card match-panel" id="match-panel" aria-live="polite" aria-busy="false" aria-label="You may already have what you need">
       {% include "partials/match_panel.html" %}
     </section>
     <p class="under-panel">Claude only suggests. A person reviews every request.</p>
@@ -141,6 +150,7 @@
       Approved AI services: {{ join_words(RULES.service_names.values()|list) }}.
     </li>
     <li><strong>Approved tools start as a pilot,</strong> with a named owner and an end date, before they're approved for everyone.</li>
+    <li><strong>How much room there is.</strong> Only a few tools can be in pilot at once, so a good idea may get Not now with a date to look again.</li>
   </ul>
 </details>
 {% endblock %}

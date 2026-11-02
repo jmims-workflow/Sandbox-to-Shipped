@@ -109,6 +109,7 @@ class Provider(Protocol):
         checklist: dict,
         chosen_tool: Optional[Tool],
         limits: str,
+        revisit: str = "",
     ) -> Optional[dict[str, str]]: ...
 
 
@@ -159,7 +160,10 @@ DRAFT_INSTRUCTIONS = SHARED_RULES + """
 Your job: draft the reason the requester will see for a decision a reviewer has
 already made. Do not question or change the decision. Write the reason in under
 70 words: kind, specific to their request, and free of jargon. Then write one
-sentence on what would change the answer. Speak as Northstar ("we")."""
+sentence on what would change the answer. Speak as Northstar ("we").
+For "Not now", the idea is worth doing but the timing isn't right, for example
+because every pilot slot is in use: say so kindly and name the month we'll look
+at it again."""
 
 
 def _wrap(text: str) -> str:
@@ -297,7 +301,7 @@ class ClaudeProvider:
         result = self._ask(SIZE_UP_INSTRUCTIONS, user, SizeUp, effort="low")
         return result.model_dump()
 
-    def draft_reason(self, request, outcome, checklist, chosen_tool, limits):
+    def draft_reason(self, request, outcome, checklist, chosen_tool, limits, revisit=""):
         user = (
             f"The reviewer's decision: {OUTCOMES[outcome]}\n"
             f"The reviewer's checklist answers: {json.dumps(checklist)}\n"
@@ -306,6 +310,8 @@ class ClaudeProvider:
             user += f"Tool the reviewer chose: {chosen_tool.name}. {chosen_tool.purpose}\n"
         if limits:
             user += "Limits the reviewer set:\n" + _wrap(limits) + "\n"
+        if revisit:
+            user += f"We'll look at this again in: {revisit}\n"
         user += "\nThe request:\n" + _wrap(_describe_request(request))
         result = self._ask(DRAFT_INSTRUCTIONS, user, DraftReason, effort="medium")
         return result.model_dump()
@@ -323,9 +329,14 @@ class DemoProvider:
 
     name = "demo"
 
-    def __init__(self, recorded: dict[str, dict], requests: list[Request]):
-        self.recorded = recorded
+    def __init__(self, recorded: dict[str, dict], requests: list[Request],
+                 example_recorded: Optional[dict[str, dict]] = None):
+        # Recorded results by demo request id, plus the "Try an example" recordings by example key.
+        self.recorded = dict(recorded)
         self._by_task = {_norm(r.task): r.id for r in requests if r.id in recorded}
+        for key, rec in (example_recorded or {}).items():
+            self.recorded[f"example:{key}"] = rec
+            self._by_task.setdefault(_norm(rec["task"]), f"example:{key}")
 
     def recorded_for_task(self, task: str) -> Optional[str]:
         return self._by_task.get(_norm(task))
@@ -354,7 +365,7 @@ class DemoProvider:
             return SizeUp.model_validate(self.recorded[rid]["size_up"]).model_dump()
         return simple_size_up(request, inventory)
 
-    def draft_reason(self, request, outcome, checklist, chosen_tool, limits):
+    def draft_reason(self, request, outcome, checklist, chosen_tool, limits, revisit=""):
         drafts = self.recorded.get(request.id, {}).get("drafts", {})
         if outcome in drafts:
             return DraftReason.model_validate(drafts[outcome]).model_dump()
@@ -487,5 +498,5 @@ class VisitorPreview:
     def size_up(self, request, inventory, recent_decisions) -> dict:
         return self._call("size_up", request, inventory, recent_decisions)
 
-    def draft_reason(self, request, outcome, checklist, chosen_tool, limits):
-        return self._call("draft_reason", request, outcome, checklist, chosen_tool, limits)
+    def draft_reason(self, request, outcome, checklist, chosen_tool, limits, revisit=""):
+        return self._call("draft_reason", request, outcome, checklist, chosen_tool, limits, revisit)

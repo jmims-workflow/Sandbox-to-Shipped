@@ -56,8 +56,11 @@ def demo_client(tmp_path):
 
 @pytest.fixture
 def live_app(tmp_path):
-    settings = Settings(requested_mode="live", api_key="test-key", data_dir=tmp_path / "data", demo_dir=DEMO_DIR)
-    client, msgs = fake_client(DEFAULT_OUTPUTS)
+    # The demo data fills every pilot slot (3 of 3). These tests are about other rules, so they get room
+    # for more pilots. tests/test_pilot_slots.py covers the default limit.
+    settings = Settings(requested_mode="live", api_key="test-key", data_dir=tmp_path / "data", demo_dir=DEMO_DIR,
+                        pilot_slots=10)
+    client, msgs = fake_client(dict(DEFAULT_OUTPUTS))
     provider = ClaudeProvider("test-key", "claude-sonnet-5-5", client=client)
     app = create_app(settings, provider=provider)
     app.state.fake_messages = msgs

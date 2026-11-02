@@ -254,3 +254,88 @@ requests:
       reason_edited: true
       decided_by: Jordan Ellis
       decided_at: 137 days ago
+
+  - id: r-1050
+    title: Personalized video messages for prospects
+    task: >-
+      Record one short video, then have it personalized for each prospect on my
+      list with their name and company, so every prospect gets their own
+      version.
+    team: Sales
+    how_often: few_week
+    who_uses: my_team
+    info: [customer_contact]
+    security_answers: {sends_without_check: "no", keeps_elsewhere: "no", ai_service: claude}
+    requester_name: Malik Johnson
+    submitted_at: 9 days ago
+    status: decided
+    timeline:
+      - {label: Submitted, date: 9 days ago}
+      - {label: Reviewer picked it up, date: 7 days ago}
+      - {label: Decided, date: 5 days ago}
+    decision:
+      outcome: not_now
+      checklist:
+        already_exists: "no"
+        sends_without_check: "no"
+        uses_customer_details: "yes"
+        security_check: passed
+      reason: >-
+        This is a good idea, and it passed security's rules. Right now all of
+        our pilot slots are in use, so we can't start a new pilot without
+        shipping or retiring one first. We'll look at it again when the date
+        comes up.
+      what_would_change: A pilot slot opening up, or a version that reuses an approved tool.
+      reason_drafted_by_claude: true
+      reason_edited: true
+      decided_by: Jordan Ellis
+      decided_at: 5 days ago
+      revisit_on: in 3 months
+
+  - id: r-1051
+    title: Summarize Connect usage reports for business reviews
+    task: >-
+      Before a quarterly business review, read the customer's Connect usage
+      report and write a one-page summary of how their teams use it, what
+      changed this quarter and what to suggest next.
+    team: Customer success
+    how_often: few_month
+    who_uses: several_teams
+    info: [customer_contact, internal_notes]
+    security_answers: {sends_without_check: "no", keeps_elsewhere: "no", ai_service: claude}
+    requester_name: Hana Kim
+    submitted_at: 100 days ago
+    status: decided
+    needed_by:
+      - name: Diego Alvarez
+        note: Our renewals team would use it before every renewal call.
+        date: 80 days ago
+      - name: Sofia Rossi
+        note: We'd want the same summary for Insight usage too.
+        date: 40 days ago
+      - name: Ben Carter
+        date: 10 days ago
+    timeline:
+      - {label: Submitted, date: 100 days ago}
+      - {label: Reviewer picked it up, date: 97 days ago}
+      - {label: Decided, date: 3 months ago}
+    decision:
+      outcome: not_now
+      checklist:
+        already_exists: "no"
+        sends_without_check: "no"
+        uses_customer_details: "yes"
+        security_check: passed
+      reason: >-
+        Business review summaries would save real time, and the request passed
+        security's rules. All of our pilot slots were in use, so we're holding
+        it for now rather than saying no. We'll look at it again in three
+        months.
+      what_would_change: >-
+        A pilot slot opening up. If Insight Dashboard Explainer can read usage
+        reports, we could add this to it instead.
+      reason_drafted_by_claude: true
+      reason_edited: false
+      decided_by: Jordan Ellis
+      decided_at: 3 months ago
+      revisit_on: 2 days ago

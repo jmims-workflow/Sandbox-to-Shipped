@@ -18,6 +18,7 @@ from sqlmodel import Session, SQLModel, create_engine, delete, select
 
 from .demo_data import DemoData
 from .models import CUSTOMER_INFO, Decision, Request, Tool
+from .rules import latest_decision
 
 JSON_FIELDS = {
     Tool: ("teams", "allowed_info", "ready_check", "journey"),
@@ -60,7 +61,9 @@ class DemoStore:
         return [copy.deepcopy(d) for d in self._decisions]
 
     def decision_for(self, request_id: str) -> Optional[Decision]:
-        return next((copy.deepcopy(d) for d in self._decisions if d.request_id == request_id), None)
+        """The newest decision. A request decided again after Not now keeps the earlier one."""
+        d = latest_decision(self._decisions, request_id)
+        return copy.deepcopy(d) if d else None
 
     def new_request_id(self) -> str:
         return "r-new"
@@ -127,6 +130,9 @@ class LiveStore:
         "security_result": "JSON",
         "needed_by": "JSON",
     }
+    NEW_DECISION_COLUMNS = {
+        "revisit_on": "DATE",
+    }
 
     def upgrade(self) -> None:
         """Bring a database from an earlier version up to date without losing data.
@@ -138,7 +144,8 @@ class LiveStore:
         """
         added: list[str] = []
         with self.engine.begin() as conn:
-            for table, columns in (("tool", self.NEW_TOOL_COLUMNS), ("request", self.NEW_REQUEST_COLUMNS)):
+            for table, columns in (("tool", self.NEW_TOOL_COLUMNS), ("request", self.NEW_REQUEST_COLUMNS),
+                                   ("decision", self.NEW_DECISION_COLUMNS)):
                 have = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
                 for name in columns:
                     if name not in have:
@@ -200,7 +207,11 @@ class LiveStore:
 
     def decision_for(self, request_id: str) -> Optional[Decision]:
         with self._session() as s:
-            return s.exec(select(Decision).where(Decision.request_id == request_id)).first()
+            # The newest decision. A request decided again after Not now keeps the earlier one.
+            return s.exec(
+                select(Decision).where(Decision.request_id == request_id)
+                .order_by(Decision.decided_at.desc(), Decision.id.desc())
+            ).first()
 
     def new_request_id(self) -> str:
         nums = [int(m.group(1)) for r in self.list_requests() if (m := re.fullmatch(r"r-(\d+)", r.id))]

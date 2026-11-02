@@ -29,9 +29,9 @@ sts check-data
 ```
 
 - Demo mode (`STS_MODE=demo`, the default) needs no key, makes no network calls and saves nothing.
-- Live preview (`STS_MODE=preview` plus `ANTHROPIC_API_KEY`) is for the public site: the demo store (nothing saved, saving buttons off with a one-line reason) with real Claude for exactly three features: the match check (including Asked before and the in-review match), Claude's read on "Here's what happens next" and "Draft the reason for me". Opening a page never calls Claude. Limits: `STS_DAILY_CLAUDE_CALLS` (default 100, resets at midnight UTC) and `STS_VISITOR_CLAUDE_CALLS_PER_HOUR` (default 10, keyed by a salted hash of the visitor address). Over a limit, or if Claude can't answer, it uses the demo results and shows "Today's live checks are used up, so you're seeing the sample version." Never an error page. Counts are in memory per server, so Cloud Run uses `--max-instances 1`. Preview or live without a key falls back to demo with a notice.
+- Live preview (`STS_MODE=preview` plus `ANTHROPIC_API_KEY`) is for the public site: the demo store (nothing saved, saving buttons off with a one-line reason) with real Claude for exactly three features: the match check (including Asked before and the in-review match), Claude's read on the reviewer view of a just-sent request ("See this request the way a reviewer would", `POST /review/sample`) and "Draft the reason for me". Opening a page never calls Claude, and sending a request in demo or preview doesn't ask for Claude's read. Limits: `STS_DAILY_CLAUDE_CALLS` (default 100, resets at midnight UTC) and `STS_VISITOR_CLAUDE_CALLS_PER_HOUR` (default 10, keyed by a salted hash of the visitor address). Over a limit, or if Claude can't answer, it uses the demo results and shows "Today's live checks are used up, so you're seeing the sample version." Never an error page. Counts are in memory per server, so Cloud Run uses `--max-instances 1`. Preview or live without a key falls back to demo with a notice.
 - Live mode needs `STS_MODE=live` and `ANTHROPIC_API_KEY`. Data goes to `DATA_DIR/sts.db`. `sts seed --reset` loads the demo data.
-- `STS_REVIEW_DAYS` (default 5) sets "Reviewers usually answer within 5 working days." Every setting is in `.env.example`.
+- `STS_REVIEW_DAYS` (default 5) sets "Reviewers usually answer within 5 working days." `STS_PILOT_SLOTS` (default 3) sets how many tools can be in pilot at once. Every setting is in `.env.example`.
 - Deploys go to Google Cloud Run (see the README). The container doesn't keep files, so the public site never runs live mode.
 - Screenshots: start the app in demo mode, then `node scripts/screenshots.js`.
 
@@ -41,8 +41,8 @@ sts check-data
 - `sts/rules.py`: checklist and decision rules, ready to ship, I need this too. `sts/matching.py`: match validation and the demo word match.
 - `sts/security.py` and `security_rules.yaml`: the automatic security check. See "Security rules" below.
 - `sts/store.py`: DemoStore (read only) and LiveStore (SQLite). `sts/web.py`: routes. `templates/`, `static/`.
-- `demo/`: `tools.yaml`, `requests.yaml`, `recorded/<request-id>.json`. Every demo date is stored as an offset from today ("today", "3 days ago", "in 2 weeks", "last month"), never a fixed date, so the demo always looks current. Demo "today" is the real date. `tests/test_demo_data.py` checks this.
-- `sts/store.py` `LiveStore.upgrade()`: adds new columns (tool and request tables) to an older live database on startup and builds journeys for existing tools. Add any new column there too.
+- `demo/`: `tools.yaml`, `requests.yaml`, `examples.yaml` (the three "Try an example" buttons, with recorded results for tasks that aren't demo requests), `recorded/<request-id>.json`. Every demo date is stored as an offset from today ("today", "3 days ago", "in 2 weeks", "last month"), never a fixed date, so the demo always looks current. Demo "today" is the real date. `tests/test_demo_data.py` checks this.
+- `sts/store.py` `LiveStore.upgrade()`: adds new columns (tool, request and decision tables) to an older live database on startup and builds journeys for existing tools. Add any new column there too.
 
 ## Decision rules (keep tests in tests/test_rules.py in step)
 
@@ -56,6 +56,23 @@ sts check-data
 - Ship it: pilot (being_tried) to approved or approved_with_limits. Retire: any status, replacement optional. Reviewers only.
 - "Start a new request from this one" copies task, team, how often, who and information, and sets copied_from.
 
+## Request a tool and what happens next (keep tests in tests/test_examples.py and tests/test_what_next.py in step)
+
+- The form starts empty in every mode. "Not sure what to write? Try an example:" has three links (`/?example=<key>`) that fill the whole form: Follow-up emails, Auto-reply to demo requests, Social posts from case studies. They work without JavaScript.
+- The panel is "You may already have what you need". Each match card leads with the outcome: "Claude thinks <tool> is a close match for what you described." (or "...a possible match... Claude is less sure."). The tool link is "Try it before you submit".
+- "Here's what happens next": live heading "Request sent"; demo and preview "Here's what would happen next" plus "This is the demo, so nothing was saved." Three steps with status words and icons (Done, Next, Later): Security check (this request's result, from `requester_line()` in `sts/security.py`, code only), A reviewer decides (STS_REVIEW_DAYS, current step), You get a decision. Then "Your request". Demo and preview only: "See this request the way a reviewer would".
+- Requesters never see Claude's read. It shows only in the review queue.
+
+## Pilot slots and Not now (keep tests in tests/test_pilot_slots.py and tests/test_not_now.py in step)
+
+- Every tool with status being_tried uses a pilot slot, including pilots past their end date, until shipped or retired.
+- The review queue shows "Pilot slots: 2 of 3 used" with links to each pilot; full: "Pilot slots: 3 of 3 used. Ship or retire a pilot to make room."
+- When full, approve and approve_with_limits are disabled with "All 3 pilot slots are in use. Ship or retire a pilot first, or choose Not now." and refused on the server in `validate_decision()`. Extending a pilot never needs a free slot.
+- not_now ("Not now", pause icon, `--notnow-text` on `--notnow-fill`) needs a reason, what would change the answer and `revisit_on` after today and no more than 6 months away (default 3 months).
+- The requester sees "Not now. We'll look at this again in <Month Year>." I need this too works on Not now requests.
+- On the revisit date (the date itself counts), the request shows under "Needs a decision": "Revisit: Not now since <date>. Needed by N people." and counts in the badge. The reviewer can reopen it (back to waiting, history and the old decision kept) or decide again. The newest decision counts.
+- Decided before shows Not now with its revisit month.
+
 ## Ready to ship rules (keep tests in tests/test_ready_to_ship.py and tests/test_sandbox_web.py in step)
 
 - A pilot's page shows reviewers "Ready to ship?" with four items, each done or not done, and a count such as "2 of 4 ready":
@@ -67,17 +84,17 @@ sts check-data
 - Team stopped using it: no approval options. "A tool the team stopped using isn't ready to ship. Extend the pilot or retire it."
 - Ship it offers Approved or Approved with limits (limits required).
 - Extend and Retire are always available. Extend once only, to no more than 60 days after the current end date. Retire needs a one-line reason; replacement optional.
-- Pilot ended: in pilot and end date before today (shown to everyone). Review due: approved and next review month before this month (reviewers only). Both appear under "Needs a decision" on the Review queue and count in the sidebar badge with waiting requests.
+- Pilot ended: in pilot and end date before today (shown to everyone). Review due: approved and next review month before this month (reviewers only). Both appear (with Not now revisits) under "Needs a decision" on the Review queue and count in the sidebar badge with waiting requests.
 - Mark reviewed asks "Still in use?" and "Anything to change?" and sets the next review six months later by default.
 - Every change adds a journey event: requested, being_tried, security_done, extended, shipped, reviewed, retired.
 - Asked before: the match call may return one past decision id. Send past decisions without requester names; drop any id not in the list sent.
-- Demo and preview modes disable Ship it, Extend, Retire, Mark reviewed, recording a security check, saving answers, Send decision, Save for later, questions and I need this too, with a one-line reason.
+- Demo and preview modes disable Ship it, Extend, Retire, Mark reviewed, recording a security check, saving answers, Send decision, Save for later, Reopen it, questions and I need this too, with a one-line reason.
 
 ## Pilot wording
 
 - Users see "pilot", never "being tried": the label "In pilot", "Pilot ends <date>", "Pilot ended", "Pilot started", "Pilot extended", "Extend the pilot", the inventory filter "In pilot".
 - Internal names stay: `being_tried`, `trial_ends`, `trial_extended`, `trial_ended`, the journey kind `being_tried`. Don't rename them in code or data files.
-- There is no "sandbox" line anywhere in the interface. The How it works path is: Request, Check what exists, Reviewer decides, Pilot, Ready to ship check, Approved.
+- There is no "sandbox" line anywhere in the interface. The How it works path is: Request, Check what exists, Reviewer decides, Pilot, Ready to ship check, Approved, with a side path: Reviewer decides, Not now, Revisit date, back to Reviewer decides.
 
 ## Security rules (keep tests in tests/test_security.py in step)
 

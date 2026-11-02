@@ -16,8 +16,9 @@ def copy_demo(tmp_path):
 def test_demo_data_is_valid():
     assert check_demo_data(DEMO_DIR) == []
     data = load_demo_data(DEMO_DIR)
-    assert len(data.tools) == 9 and len(data.requests) == 9
-    assert {d.outcome for d in data.decisions} == {"approve", "approve_with_limits", "use_existing", "not_approved"}
+    assert len(data.tools) == 10 and len(data.requests) == 11
+    assert {d.outcome for d in data.decisions} == {"approve", "approve_with_limits", "use_existing", "not_approved",
+                                                   "not_now"}
 
 
 def test_bad_tool_status_names_file_and_field(tmp_path):
@@ -25,7 +26,7 @@ def test_bad_tool_status_names_file_and_field(tmp_path):
     p = demo / "tools.yaml"
     p.write_text(p.read_text().replace("status: retired", "status: gone", 1))
     problems = check_demo_data(demo)
-    assert any(x.startswith("demo/tools.yaml, tools[8].status") for x in problems), problems
+    assert any(x.startswith("demo/tools.yaml, tools[9].status") for x in problems), problems
 
 
 def test_missing_limits_is_explained(tmp_path):

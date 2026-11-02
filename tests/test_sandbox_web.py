@@ -133,7 +133,10 @@ def test_how_it_works_shows_the_new_path_and_principle(demo_client):
     steps = re.findall(r'<span class="step[^"]*">(.*?)</span><span class="arrow">|<span class="step approved">(.*?)</span>',
                        demo_client.get("/how-it-works").text)
     labels = [" ".join(re.sub(r"<[^>]+>", " ", a or b).split()) for a, b in steps]
-    assert labels == ["Request", "Check what exists", "Reviewer decides", "Pilot", "Ready to ship check", "Approved"]
+    # The main path, then the Not now side path that loops back to Reviewer decides.
+    assert labels[:6] == ["Request", "Check what exists", "Reviewer decides", "Pilot", "Ready to ship check", "Approved"]
+    assert labels[6:] == ["Reviewer decides", "Not now", "Revisit date"]
+    assert "Back to Reviewer decides" in text
     assert "the sandbox" not in flow and "Why the name" not in text
     assert "Shipped means it earned it." in text
     assert text.index("Owners agree to be owners.") < text.index("Shipped means it earned it.")
@@ -145,8 +148,10 @@ def test_badge_counts_waiting_requests_plus_tools_that_need_a_decision(demo_clie
     waiting = sum(r.status == "waiting" for r in store.list_requests())
     html = demo_client.get("/review").text
     assert waiting == 4
-    assert re.findall(r'class="badge"[^>]*>(\d+)<', html)[0] == str(waiting + 2)
-    assert 'aria-label="6 waiting or needing a decision"' in html
+    # Waiting requests, plus Partner Outreach Drafts (pilot ended), Proposal Drafter (review due) and
+    # the Not now request whose revisit date has arrived.
+    assert re.findall(r'class="badge"[^>]*>(\d+)<', html)[0] == str(waiting + 3)
+    assert 'aria-label="7 waiting or needing a decision"' in html
 
 
 def test_demo_disables_every_tool_change_but_still_shows_the_check(demo_client):
@@ -182,8 +187,8 @@ def test_tool_changes_are_for_reviewers(demo_client):
 # ---- Asked before ------------------------------------------------------------------------
 
 
-def test_prefilled_example_shows_no_asked_before_card(demo_client):
-    html = demo_client.get("/").text
+def test_follow_up_example_shows_no_asked_before_card(demo_client):
+    html = demo_client.get("/?example=follow-up-emails").text
     assert "Call Recap Writer" in html
     assert "Asked before" not in html
 
@@ -342,12 +347,12 @@ def test_badge_counts_live(live_app, live_client):
     store = seed(live_app)
     as_reviewer(live_client)
     html = live_client.get("/review").text
-    assert re.findall(r'class="badge"[^>]*>(\d+)<', html)[0] == "6"
+    assert re.findall(r'class="badge"[^>]*>(\d+)<', html)[0] == "7"
     tool = store.get_tool("partner-outreach-drafts")
     tool.trial_ends = date.today()  # Ends today: not ended yet.
     store.save(tool)
     html = live_client.get("/review").text
-    assert re.findall(r'class="badge"[^>]*>(\d+)<', html)[0] == "5"
+    assert re.findall(r'class="badge"[^>]*>(\d+)<', html)[0] == "6"
 
 
 def test_edit_checks_the_next_review_month(live_app, live_client):

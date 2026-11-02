@@ -22,6 +22,8 @@
   --no-border: #E8B4AA;
   --tried-text: #1E5E57;
   --tried-fill: #DFF0EC;
+  --notnow-text: #334155;
+  --notnow-fill: #E2E8F0;
   --neutral-text: #3E4441;
   --neutral-fill: #E8E6E0;
   /* Live preview mode pill. */
@@ -205,6 +207,7 @@ main:focus { outline: none; }
 .label-existing { background: var(--existing-fill); color: var(--existing-text); }
 .label-notapproved { background: var(--no-fill); color: var(--no-text); }
 .label-tried { background: var(--tried-fill); color: var(--tried-text); }
+.label-notnow { background: var(--notnow-fill); color: var(--notnow-text); }
 .label-retired, .label-waiting { background: var(--neutral-fill); color: var(--neutral-text); }
 .label-trial-ended { background: var(--trial-ended-fill); color: var(--trial-ended-text); }
 .label-review-due { background: var(--review-due-fill); color: var(--review-due-text); }
@@ -307,6 +310,8 @@ input[aria-invalid="true"], textarea[aria-invalid="true"], select[aria-invalid="
 .decision-card.is-existing { background: var(--existing-fill); border-color: var(--existing-fill); }
 .decision-card.is-notapproved { background: var(--no-fill); border-color: var(--no-border); }
 .decision-card.is-waiting { background: var(--surface); }
+.decision-card.is-notnow { background: var(--notnow-fill); border-color: var(--notnow-fill); }
+.is-notnow .decision-icon, .is-notnow h2 { color: var(--notnow-text); }
 .decision-icon {
   width: 48px; height: 48px; flex: none;
   border-radius: 50%; background: var(--surface);
@@ -603,3 +608,47 @@ dl.details-list { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); g
 .look-for ul { padding-left: 20px; margin: 8px 0 0; }
 .look-for li + li { margin-top: 8px; }
 .look-for ul ul li + li { margin-top: 4px; }
+
+/* Request a tool: "Try an example" buttons. */
+.example-row { margin: 0 0 20px; }
+.example-row p { margin: 0 0 8px; font-weight: 600; }
+.example-row ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.example-row .btn { min-height: 44px; }
+
+/* Here's what happens next: three steps, each with its status in words and an icon. */
+.steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+.step-item { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-start; padding: 14px 0; border-top: 1px solid var(--card-border); }
+.step-item:first-child { border-top: 0; padding-top: 0; }
+.step-item h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.step-item h3::before { counter-increment: step; content: counter(step) ". "; }
+.step-item p { margin: 0; }
+.step-item > div { flex: 1 1 220px; min-width: 0; }
+.step-status {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  font-size: 0.85rem; font-weight: 600; flex: none; min-width: 76px;
+  background: var(--neutral-fill); color: var(--neutral-text);
+}
+.step-item.is-done .step-status { background: var(--tried-fill); color: var(--tried-text); }
+.step-item.is-next .step-status { background: var(--purple-soft); color: var(--purple); }
+.step-item[aria-current="step"] h3 { color: var(--purple); }
+.reviewer-view { margin: 0 0 16px; }
+.link-button {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0;
+  background: none; border: 0; color: var(--purple); font: inherit; font-weight: 600;
+  text-decoration: underline; cursor: pointer; text-align: left;
+}
+.link-button:hover { color: var(--purple-hover); }
+
+/* Review queue: pilot slots. */
+.slots-card { margin-bottom: 20px; }
+.slots-line { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.1rem; }
+.slots-card.is-full .slots-line { color: var(--warn-text); }
+.slot-list { margin: 8px 0 0; padding-left: 20px; }
+.slot-list a { display: inline-block; min-height: 44px; line-height: 44px; }
+.outcome-card.is-disabled { color: var(--text-2); background: var(--page); cursor: not-allowed; }
+.outcome-card.is-disabled:hover { border-color: var(--card-border); }
+#slots-full { display: flex; gap: 6px; align-items: flex-start; color: var(--warn-text); }
+
+/* How it works: the Not now side path. */
+.flow-side { margin-top: 0; }
+.flow .step.notnow { background: var(--notnow-fill); color: var(--notnow-text); border-color: var(--notnow-fill); }

@@ -1,5 +1,5 @@
 {% from "macros.html" import icon, label %}
-<h2>{{ icon("search") }}<span>You may already have this</span></h2>
+<h2>{{ icon("search") }}<span>You may already have what you need</span></h2>
 {% if panel and panel.limited %}<p class="notice notice-info small" role="status">{{ MSG_LIMITED }}</p>{% endif %}
 {% if panel and panel.error %}
   <p class="notice notice-warn" role="alert">{{ panel.error }}</p>
@@ -11,21 +11,18 @@
   {% for m in panel["items"] %}
   {% set t = m.tool %}
   <article class="match-card" aria-labelledby="match-{{ t.id }}">
-    <div class="match-head">
-      <h3 id="match-{{ t.id }}">{{ t.name }}</h3>
-      {{ label(t.status) }}
-    </div>
     {% if m.confidence == "close" %}
-    <p class="confidence">Close match. Claude is fairly sure.</p>
+    <h3 class="confidence" id="match-{{ t.id }}">Claude thinks <strong>{{ t.name }}</strong> is a close match for what you described.</h3>
     {% else %}
-    <p class="confidence">Possible match. Claude is less sure:</p>
+    <h3 class="confidence" id="match-{{ t.id }}">Claude thinks <strong>{{ t.name }}</strong> is a possible match for what you described. Claude is less sure.</h3>
     {% endif %}
+    <p class="match-head">{{ label(t.status) }}</p>
     <p>{{ m.reason }}</p>
     <p class="muted small">{{ t.purpose }} Okay to use with: {% for i in t.allowed_info %}{{ INFO_KINDS[i]|lower }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>
     <p class="small">Owner: {{ t.owner_name }}, {{ t.owner_team }}</p>
     <p class="match-links">
       <a href="/tools/{{ t.id }}">See it in the inventory</a>
-      {% if t.link %}<a href="{{ t.link }}" rel="noopener">Open the tool {{ icon("external", 16) }}</a>{% endif %}
+      {% if t.link %}<a href="{{ t.link }}" rel="noopener">Try it before you submit {{ icon("external", 16) }}</a>{% endif %}
     </p>
   </article>
   {% endfor %}
@@ -58,7 +55,11 @@
 {% if panel and panel.checked and not panel.error and panel.in_review %}
 {% set o = panel.in_review %}
 <article class="asked-card need-card" aria-labelledby="in-review-h">
+  {% if o.status == "not_now" %}
+  <h3 id="in-review-h">{{ icon("pause", 18) }}<span>Someone already asked for something like this. It's on hold for now.</span></h3>
+  {% else %}
   <h3 id="in-review-h">{{ icon("inbox", 18) }}<span>Someone already asked for something like this. It's in review.</span></h3>
+  {% endif %}
   <div class="match-head">
     <p style="margin:0"><strong>{{ o.title }}</strong></p>
     {{ label(o.status) }}

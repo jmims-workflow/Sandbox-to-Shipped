@@ -44,6 +44,10 @@
     "not_approved": {
       "reason": "We're not approving this as requested because it would read support history and meeting notes for every account, and our security check found that some notes include contract details the CSM team can't see today.",
       "what_would_change": "A version that reads only support threads and notes the CSM already has access to would likely be approved."
+    },
+    "not_now": {
+      "reason": "Renewal risk notes would help CSMs, but every pilot slot is in use right now, and this one also needs a person from security to look. We'll come back to it on the date below.",
+      "what_would_change": "A pilot slot opening up and the security review being done."
     }
   }
 }

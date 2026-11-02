@@ -11,11 +11,15 @@
 <div class="two-col">
   <div class="stack">
     {% if d %}
-      {% set kinds = {"approve": ("is-approved", "check"), "approve_with_limits": ("is-limits", "info"), "use_existing": ("is-existing", "arrow"), "not_approved": ("is-notapproved", "x")} %}
+      {% set kinds = {"approve": ("is-approved", "check"), "approve_with_limits": ("is-limits", "info"), "use_existing": ("is-existing", "arrow"), "not_approved": ("is-notapproved", "x"), "not_now": ("is-notnow", "pause")} %}
       <section class="decision-card {{ kinds[d.outcome][0] }}" aria-labelledby="decision-h">
         <div class="decision-icon">{{ icon(kinds[d.outcome][1], 26) }}</div>
         <div>
+          {% if d.outcome == "not_now" and d.revisit_on %}
+          <h2 id="decision-h">Not now. We'll look at this again in {{ format_month(d.revisit_on) }}.</h2>
+          {% else %}
           <h2 id="decision-h">{{ OUTCOMES[d.outcome] }}</h2>
+          {% endif %}
           <p>{{ d.reason }}</p>
           {% if d.limits %}<p><strong>Limit:</strong> {{ d.limits }}</p>{% endif %}
           <p class="small">Decided {{ d.decided_at|date }} by {{ d.decided_by }}</p>

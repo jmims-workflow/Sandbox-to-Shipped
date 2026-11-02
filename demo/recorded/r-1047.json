@@ -44,6 +44,10 @@
     "not_approved": {
       "reason": "We're not approving this as requested because posts would publish customer names and quotes without a clear step where a person checks them. We want every public post about a customer to be read first.",
       "what_would_change": "A version where someone on Marketing reviews and posts each draft would likely be approved."
+    },
+    "not_now": {
+      "reason": "Social posts from case studies are a good fit, and three people need them. All of our pilot slots are in use right now, so we'll look at this again on the date below.",
+      "what_would_change": "A pilot slot opening up, or adding social posts to Case Study Builder."
     }
   }
 }

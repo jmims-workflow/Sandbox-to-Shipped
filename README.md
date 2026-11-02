@@ -23,10 +23,10 @@ When people want an AI tool, they ask in chat, in email, in a hallway. The same 
 
 ## How it works
 
-1. **Request a tool.** Someone describes the task (not the tool), their team, how often they'd do it, who would use it and what information it would touch. If it uses anything other than public information, three short questions for security appear.
-2. **Check what exists.** As they type, the app shows up to two approved tools that may already do the job, and how sure Claude is. If a match is close but not quite right, they say what's missing in the same form. If someone already asked for the same thing and it's still in review, they can say **I need this too** instead of starting a new request.
+1. **Request a tool.** The form starts empty, with three example buttons above it for anyone not sure what to write. Someone describes the task (not the tool), their team, how often they'd do it, who would use it and what information it would touch. If it uses anything other than public information, three short questions for security appear.
+2. **Check what exists.** As they type, the app shows up to two approved tools that may already do the job, leading with the outcome: "Claude thinks Call Recap Writer is a close match for what you described." If a match is close but not quite right, they say what's missing in the same form. If someone already asked for the same thing and it's still in review, they can say **I need this too** instead of starting a new request.
 3. **The security check runs.** Plain code applies security's rules to the answers. See "The automatic security check" below.
-4. **A reviewer decides.** The request lands in the review queue with Claude's quick read and the security check result. The reviewer answers a four-question checklist, picks an outcome and edits a reason Claude drafted. The requester sees the decision, the reason and what would change the answer.
+4. **A reviewer decides.** After sending, the requester sees "Here's what happens next": three steps (the security check with this request's real result, a reviewer decides, you get a decision), each marked Done, Next or Later. The request lands in the review queue with Claude's quick read (only reviewers see it) and the security check result. The reviewer answers a four-question checklist, picks an outcome and edits a reason Claude drafted. The requester sees the decision, the reason and what would change the answer. A good idea at the wrong time can get **Not now**, with a date to look again.
 5. **Pilot.** An approved tool starts as a pilot with one team, an owner who agreed to own it and an end date.
 6. **Ready to ship check.** On the tool's page, a reviewer works through four items: the owner agreed, security is covered, the team kept using it, and how it was tested. "Ship it" stays off until all four are done.
 7. **Approved.** The reviewer ships it to approved (or approved with limits). The tool page keeps the answers under "How it earned approval", and every tool shows its journey from request to today.
@@ -34,6 +34,14 @@ When people want an AI tool, they ask in chat, in email, in a hallway. The same 
 Pilots that run past their end date and reviews that come due show up under **Needs a decision** at the top of the review queue, so nothing sits in a pilot or the inventory forever. When someone types a request, the app also shows a related past decision, if there is one, as **Asked before**.
 
 Every past decision is listed on **Decided before**, without the requester's name, so nobody has to ask twice.
+
+### Pilot slots
+
+Only a set number of tools can be in pilot at once: three by default (`STS_PILOT_SLOTS`). Every tool in pilot uses a slot, even after its end date, until it is shipped or retired. The top of the review queue shows "Pilot slots: 2 of 3 used" with a link to each pilot. When every slot is in use, it says "Pilot slots: 3 of 3 used. Ship or retire a pilot to make room.", and Approve and Approve with limits are turned off in the decision form with the line "All 3 pilot slots are in use. Ship or retire a pilot first, or choose Not now." The server refuses those approvals too. Extending a pilot doesn't need a free slot.
+
+### Not now
+
+Not now is for a good idea at the wrong time. It needs a reason, what would change the answer and a date to look again, no more than 6 months away (3 months by default). The requester sees "Not now. We'll look at this again in March 2027." with the reason. People can still say **I need this too** on a Not now request, so demand keeps counting. On the revisit date, the request appears under **Needs a decision**: "Revisit: Not now since August 2, 2026. Needed by 4 people." The reviewer can reopen it (it goes back to waiting, keeping its history) or decide again. Decided before shows Not now decisions with their revisit month.
 
 ### The automatic security check
 
@@ -56,7 +64,7 @@ The result is saved with the request, shown in the review queue and fills the se
 
 ### What reviewers look for, and early warnings
 
-Under the form, a collapsible **What reviewers look for** section lists the short version: whether a tool we have already does it, whether it would send anything to customers on its own (Northstar doesn't approve that), what information it uses under security's rules, and that approved tools start as a pilot.
+Under the form, a collapsible **What reviewers look for** section lists the short version: whether a tool we have already does it, whether it would send anything to customers on its own (Northstar doesn't approve that), what information it uses under security's rules, that approved tools start as a pilot, and how much room there is for new pilots.
 
 Two plain warnings appear next to the answers that trigger them, before anyone submits. They come from rules in code, never from Claude, and they are never a score or a prediction. The requester can always submit anyway.
 
@@ -69,27 +77,31 @@ Two plain warnings appear next to the answers that trigger them, before anyone s
 2. **Check what exists first.** Before anyone submits, the app shows approved tools that may already do the job. Often the best answer is a tool the company already has.
 3. **A person decides every request.** Claude sizes up requests, suggests matches and drafts reasons. It never approves or turns down anything on its own.
 4. **Security writes the security rules.** Everyday requests don't wait on a person: code applies security's rules to the answers. Sensitive information always goes to a person.
-5. **Every "no" comes with a reason and a path.** Each decision says why, and what would change the answer.
+5. **Every "no" comes with a reason and a path.** Each decision says why, and what would change the answer. A Not now always comes with a date to look again.
 6. **Ask what people actually know.** The form asks how often and who would use it, not how many hours it would save, because people guess hours badly.
 7. **One request per idea.** "I need this too" adds people to a request already in review, so reviewers see how many people need it instead of three copies.
 8. **Past decisions are open, requesters stay private.** "Decided before" shows every past decision and its reason so people do not ask twice, but never shows who asked. Requesters never see who else needs a request.
 9. **Owners agree to be owners.** Nobody is listed as a tool owner unless they agreed to it.
 10. **Shipped means it earned it.** Every new tool starts as a pilot: one team, a named owner and an end date. It moves to approved only after a reviewer confirms the owner agreed, security is covered, the team kept using it, and how it was tested. Pilots that run out and reviews that come due are flagged.
-11. **Demo mode uses the real logic.** It runs recorded Claude results through the same matching, security, checklist and decision code as live mode.
-12. **Honest about the alternative.** The cheapest version of this is a shared form and a spreadsheet. This app earns its place with the check for existing tools, the automatic security check, drafted reasons, and a decision history people can search.
+11. **Room is part of the standard.** Only a set number of tools can be in pilot at once. When the pilots are full, a new yes means shipping or retiring something first, or a Not now with a date to look again. The limit is shown openly, so a capacity decision is about the limit, not the person asking.
+12. **Demo mode uses the real logic.** It runs recorded Claude results through the same matching, security, checklist and decision code as live mode.
+13. **Honest about the alternative.** The cheapest version of this is a shared form and a spreadsheet. This app earns its place with the check for existing tools, the automatic security check, drafted reasons, and a decision history people can search.
+
+Why standards. Every "no" in this app points to something written down: security's rules, the review checklist, the number of pilot slots, or a past decision. The idea, borrowed from Stuart Diamond's Getting More, is that a decision should rest on an agreed standard, so the conversation is about the standard and not about anyone's feelings. It also means no single reviewer has to be the bad guy.
 
 ## What you can try in the demo
 
-The public site at https://sandbox-to-shipped-103749504031.us-east1.run.app is open to anyone and runs in live preview mode. The existing-tool check (with Asked before and I need this too), Claude's read on "Here's what happens next" and "Draft the reason for me" use real Claude, within daily limits. Nothing is saved: the buttons that would save something are turned off, with a line saying why. When the day's live checks are used up, the site quietly shows the recorded sample results instead.
+The public site at https://sandbox-to-shipped-103749504031.us-east1.run.app is open to anyone and runs in live preview mode. The existing-tool check (with Asked before and I need this too), Claude's read on the reviewer view of a request you just sent ("See this request the way a reviewer would") and "Draft the reason for me" use real Claude, within daily limits. Nothing is saved: the buttons that would save something are turned off, with a line saying why. When the day's live checks are used up, the site quietly shows the recorded sample results instead.
 
 A visitor can use every page and switch between Requester and Reviewer. Some things to try:
 
-- On **Request a tool**, the prefilled example finds Call Recap Writer. Replace the text with "auto-reply to demo requests" to see an **Asked before** card.
-- Type "posts for social media from our case studies" to see **I need this too** for a request already in review.
+- On **Request a tool**, the form starts empty. Pick an example above it: **Follow-up emails** finds Call Recap Writer as a close match; **Auto-reply to demo requests** shows the "sends to customers" early warning and an **Asked before** card; **Social posts from case studies** shows **I need this too** for a request already in review.
+- Submit a request to see "Here's what would happen next", then use **See this request the way a reviewer would** to open it in the review queue with Claude's read.
 - Check **Sensitive personal information**, or answer Yes to "Would it send anything to customers...", to see the early warnings. Open **What reviewers look for** under the form.
 - As a reviewer, the **Review queue** shows each security result: Social posts from case studies passed automatically and is needed by 3 people; Renewal risk notes for CSMs goes to a person because the AI service answer was "Not sure"; Answer employee benefits questions goes to a person because it uses health details.
 - Open **Translation Helper** to see the Ready to ship card at 2 of 4, with Ship it turned off.
-- The **Review queue** starts with Needs a decision: Partner Outreach Drafts (pilot ended) and Proposal Drafter (review due).
+- The **Review queue** starts with "Pilot slots: 3 of 3 used" (Translation Helper, Partner Outreach Drafts and Event Follow-up Notes), so Approve is turned off. Below it, Needs a decision lists Partner Outreach Drafts (pilot ended), Proposal Drafter (review due) and Summarize Connect usage reports for business reviews, a Not now whose revisit date has arrived, needed by 4 people.
+- **Personalized video messages for prospects** shows a Not now decision on its request page and on Decided before.
 - **Webinar Invite Writer** shows a full journey and how it earned approval.
 
 Demo dates are stored as offsets from today, so the examples always look current.
@@ -118,7 +130,7 @@ Open http://localhost:8080. Use **Viewing as** at the bottom of the sidebar to s
 
 ### Live preview mode (real Claude, nothing saved)
 
-Live preview is for a public site. It behaves exactly like demo mode (sample data, nothing saved, saving buttons off), except that three features use real Claude: the existing-tool check (including Asked before and I need this too), Claude's read on "Here's what happens next", and "Draft the reason for me".
+Live preview is for a public site. It behaves exactly like demo mode (sample data, nothing saved, saving buttons off), except that three features use real Claude: the existing-tool check (including Asked before and I need this too), Claude's read on the reviewer view of a request you just sent, and "Draft the reason for me". Requesters never see Claude's read, so sending a request doesn't ask Claude for one; it is made only when someone presses "See this request the way a reviewer would".
 
 ```bash
 export STS_MODE=preview
@@ -166,6 +178,7 @@ If `STS_MODE=live` is set but `ANTHROPIC_API_KEY` is missing, the app falls back
 | `STS_MODEL` | `claude-sonnet-5-5` | The Claude model used in preview and live. |
 | `DATA_DIR` | `./data` | Folder for the SQLite file in live mode. |
 | `STS_REVIEW_DAYS` | `5` | Shown on "Here's what happens next": "Reviewers usually answer within 5 working days." |
+| `STS_PILOT_SLOTS` | `3` | How many tools can be in pilot at once. Approvals are refused while every slot is in use. |
 | `STS_DAILY_CLAUDE_CALLS` | `100` | Live preview: Claude calls per day for the whole site. |
 | `STS_VISITOR_CLAUDE_CALLS_PER_HOUR` | `10` | Live preview: Claude calls per visitor per hour. |
 | `PORT` | `8080` | Port the server listens on. |
@@ -188,7 +201,7 @@ Problems are reported with the file and field, for example `demo/tools.yaml, too
 pytest
 ```
 
-The tests cover the matching rules, every decision rule, every path through the security check and the rules file checks, the early warnings, I need this too, live preview (nothing saved, Claude only for three features, both limits, falling back without a key), the ready to ship check (Ship it refused on the server until all four items are done), extending a pilot, Retire, Mark reviewed, Pilot ended and Review due at the date edges, the badge count, Asked before, each tool's journey, demo dates relative to today, upgrading a database from earlier versions, copying a request, privacy on Decided before and for Claude's read, demo mode making no network calls and saving nothing, demo data checks, the 5,000 character limit, the plain-language word list (including "being tried") and a scan for em dashes. Live and preview modes are tested with a fake Claude client, so the tests never call the real API. A GitHub Actions workflow runs them on every pull request.
+The tests cover the matching rules, every decision rule, every path through the security check and the rules file checks, the early warnings, I need this too, live preview (nothing saved, Claude only for three features, both limits, falling back without a key), the ready to ship check (Ship it refused on the server until all four items are done), extending a pilot, Retire, Mark reviewed, Pilot ended and Review due at the date edges, pilot slots (counting, the 3 of 3 message, approval refused on the server when full, extending allowed), Not now (the revisit date rules, the revisit at the date edges, reopening with history kept, I need this too on a Not now), the request form starting empty and each example, "Here's what happens next" (each security result, never Claude's read), the badge count, Asked before, each tool's journey, demo dates relative to today, upgrading a database from earlier versions, copying a request, privacy on Decided before and for Claude's read, demo mode making no network calls and saving nothing, demo data checks, the 5,000 character limit, the plain-language word list (including "being tried") and a scan for em dashes. Live and preview modes are tested with a fake Claude client, so the tests never call the real API. A GitHub Actions workflow runs them on every pull request.
 
 ### Run with Docker
 
@@ -280,7 +293,9 @@ For technical readers, here is how the plain words in the app map to familiar id
 - **I need this too** is deduplication. The same match call also gets the requests still waiting or in review (id, title and task; never names) and may return one id with a reason. Code drops any id not in the list sent, and leaves out the person's own requests. Adding a person is a server-side rule (`add_needed_by()`): once per person, never to their own request, only while it's open.
 - **Pilot** is a sandbox stage (internally `being_tried`). Every approval creates a tool in that state, with an owner who agreed and an end date (`trial_ends`). "Ship it" promotes it.
 - **The ready to ship check** is a promotion gate enforced on the server. `ship_tool()` in `sts/rules.py` refuses until all four items are done, and refuses outright when the team stopped using the tool, whatever the page shows. Extending (once, up to 60 days) and retiring (with a reason) are always open.
-- **Needs a decision** is stale-item monitoring: pilots past their end date and approved tools past their review month are flagged on the tool page, in the inventory and at the top of the review queue, and counted in the sidebar badge.
+- **Needs a decision** is stale-item monitoring: pilots past their end date and approved tools past their review month are flagged on the tool page, in the inventory and at the top of the review queue, and counted in the sidebar badge. Not now requests whose revisit date has arrived join them.
+- **Pilot slots** are a work-in-progress limit enforced on the server. `slot_count()` in `sts/rules.py` counts every tool in `being_tried`, and `validate_decision()` refuses Approve and Approve with limits while every slot is in use, whatever the page sent. Extending a pilot never checks slots.
+- **Not now** is a deferral with a scheduled revisit. The decision stores `revisit_on` (validated to be after today and within 6 months). `revisit_due()` puts the request back under Needs a decision on that date, and `reopen_request()` sends it back to waiting. Every decision is kept, and the newest one counts.
 - **Asked before** is retrieval over past decisions with id validation. The same match call gets the past decisions (title, task, outcome, reason, what would change; never the requester's name) and may return one decision id with a reason. Code drops any id that was not in the list sent.
 - **Live preview** wraps the Claude provider with an in-memory rate limiter: a daily counter that rolls over at midnight UTC and a sliding one-hour window per visitor, keyed by a salted SHA-256 hash of the visitor's address (the first `X-Forwarded-For` entry on Cloud Run). Over the limit, or if Claude can't answer, it uses the demo provider. The store is the read-only demo store, so nothing can be saved.
 - **Each tool's journey** is an event log kept on the tool (requested, pilot started, security check done, pilot extended, shipped, reviewed, retired), shown as an ordered list.
@@ -299,7 +314,7 @@ Code layout:
 | `sts/web.py` | FastAPI routes. Pages are server-rendered Jinja2 templates in `templates/`. |
 | `sts/cli.py` | The `sts` command. |
 | `security_rules.yaml` | Security's rules, owned by the security team. |
-| `demo/` | `tools.yaml`, `requests.yaml` and `recorded/<request-id>.json` (recorded Claude output). Dates are offsets from today, such as "3 days ago" or "in 2 weeks". |
+| `demo/` | `tools.yaml`, `requests.yaml`, `examples.yaml` (the "Try an example" buttons) and `recorded/<request-id>.json` (recorded Claude output). Dates are offsets from today, such as "3 days ago" or "in 2 weeks". |
 
 Claude calls use the official `anthropic` Python SDK with structured outputs (`messages.parse` with a Pydantic model), so every response parses. Request text is wrapped in `<request_data>` delimiters and Claude is told to treat it as data and ignore any instructions inside it. Matching and size-ups use low effort for quick, steady answers; current Claude models no longer accept a temperature setting, so effort is the lever instead. Calls opt in to the API's default refusal fallback.
 
@@ -307,7 +322,7 @@ The interface is plain HTML and CSS with a little vanilla JavaScript (the live m
 
 ## Screenshots
 
-Request a tool, with the match panel:
+Request a tool, with the Follow-up emails example and the match panel:
 
 ![Request a tool](docs/screenshots/request-a-tool.png)
 
@@ -323,9 +338,17 @@ Tool inventory:
 
 ![Tool inventory](docs/screenshots/tool-inventory.png)
 
-Review queue, with Needs a decision at the top, then the request's details, the security check result, who else needs it, Claude's read and the checklist:
+Review queue, with pilot slots and Needs a decision at the top, then the request's details, the security check result, who else needs it, Claude's read and the checklist:
 
 ![Review queue with Needs a decision](docs/screenshots/review-queue.png)
+
+The top of the review queue: pilot slots at 3 of 3, and the Not now request whose revisit date has arrived under Needs a decision:
+
+![Pilot slots 3 of 3 and a Not now revisit](docs/screenshots/review-slots-revisit.png)
+
+"Here's what would happen next" after sending a request in the demo:
+
+![Here's what would happen next](docs/screenshots/what-happens-next.png)
 
 A tool in pilot, Translation Helper, with the Ready to ship card at 2 of 4:
 
@@ -339,14 +362,14 @@ A request page at phone width:
 
 <img src="docs/screenshots/request-page-phone.png" alt="A request page at phone width" width="390">
 
-To refresh them, start the app in demo mode and run `node scripts/screenshots.js` (needs Playwright).
+To refresh them, start the app in demo mode and run `node scripts/screenshots.js` (needs Playwright). With the app running, `node scripts/check_examples.js` checks the three example buttons in a real browser with JavaScript on; `pytest` runs it too when Node and Playwright are installed, and skips it otherwise.
 
 ## Known limitations
 
 - **No real sign-in.** "Viewing as" and the display name are cookies anyone can change, so a live instance is for one person or a trusted team. Real sign-in would be the first thing to add. It also means "I need this too" goes by display name.
 - **The automatic security check is only as good as the answers on the request.** If someone answers No when the honest answer is Yes, the request can pass automatically. Reviewers can still change "Passed automatically" to "Needed", and security can tighten the rules file.
 - **Claude's matches can be wrong or miss a tool.** That's why a reviewer sees what the requester was shown and makes the call.
-- **The demo's word match is much simpler than live mode.** Only the prefilled example uses recorded Claude results.
+- **The demo's word match is much simpler than live mode.** Only the three examples and the demo requests use recorded Claude results.
 - **A single SQLite file suits a small team, not a large company.**
 - **The site on Cloud Run never saves.** A Cloud Run container doesn't keep files, so saved data would need a database outside the container. The public site runs in preview mode, which saves nothing.
 - **Live preview limits are counted per server and reset when it restarts.** That's why the deploy uses `--max-instances 1`, and why a spend limit in the Claude Console is the real backstop. The per-visitor limit trusts the first `X-Forwarded-For` address, which a determined visitor can change; the daily limit still holds.

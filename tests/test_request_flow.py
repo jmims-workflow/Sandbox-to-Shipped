@@ -51,17 +51,15 @@ def test_review_card_shows_labeled_rows(demo_client):
     assert "Owen Pratt. Marketing." not in card
 
 
-def test_what_happens_next_shows_labeled_rows_and_the_then_card(demo_client):
+def test_what_happens_next_shows_labeled_rows_after_the_steps(demo_client):
     html = demo_client.post("/", data={**BASE, "info": "public_only"}).text
     rows = details(html)
     assert {"Requested by", "How often", "Who would use it", "Information it uses"} <= set(rows)
     text = text_of(html)
-    assert "If it uses customer or company information, it's checked against security's rules. Sensitive personal " \
-           "information always goes to a person on the security team." in text
     assert "Reviewers usually answer within 5 working days." in text
-    assert "Only reviewers see this" in text
-    read = html[html.index("claude-read-h") - 300:]
-    assert read.index("Only reviewers see this") < read.index("A starting point")
+    # The steps come first, then "Your request". Claude's read is never on this page.
+    assert html.index("What happens next") < html.index("Your request")
+    assert "claude-read-h" not in html and "Only reviewers see this" not in text
 
 
 def test_review_days_comes_from_the_setting(tmp_path, monkeypatch):
@@ -147,7 +145,7 @@ def test_claude_is_told_to_say_pilot(live_app, live_client):
 
 
 def test_questions_and_reviewers_look_for_on_request_a_tool(demo_client):
-    html = demo_client.get("/").text
+    html = demo_client.get("/?example=follow-up-emails").text
     assert "A few questions for security" in html
     for q in ("Would it send anything to customers or the public without a person checking first?",
               "Would it keep information anywhere other than tools Northstar already approved?",
@@ -186,8 +184,8 @@ def test_both_early_warnings_show_and_submitting_still_works(demo_client):
     assert re.search(r'id="warn-info" role="status"[^>]*></p>', quiet)
     # Submitting still works after both warnings.
     r = demo_client.post("/", data=data)
-    assert r.status_code == 200 and "what happens next" in r.text
-    assert "Security check: a person from security will review this" in r.text
+    assert r.status_code == 200 and "what would happen next" in r.text
+    assert "A person from security will review this, because it uses sensitive personal information." in r.text
 
 
 def test_live_saves_the_security_result_with_the_request(live_app, live_client):
