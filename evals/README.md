@@ -60,6 +60,24 @@ The first real Claude run was on 2026-11-02, with version 1 of the case set. The
 - The retired-tool cases revealed a labeling mistake, not a matching mistake (see [Label changes](#label-changes)).
 - Weaknesses kept as they are: Asked before suggested an unrelated past decision in 6 of 32 cases, and a marketing email series was offered Call Recap Writer as a possible match.
 
+## Results from the second run
+
+The second real Claude run was on 2026-11-02, with version 2 of the case set, each case run three times (96 runs). The report is [matching-2026-11-02-v2-claude.md](results/matching-2026-11-02-v2-claude.md); the word match baseline on the same set is [matching-2026-11-02-v2-baseline.md](results/matching-2026-11-02-v2-baseline.md).
+
+| Measure | Claude | Word match |
+| --- | --- | --- |
+| Top suggestion right | 96% (92 of 96) | 75% |
+| Expected tool found | 100% (45 of 45) | 80% |
+| Misses | 0 | 3 |
+| Asked before right | 81% | 72% |
+| I need this too right | 99% | 78% |
+
+- No suggestion Claude called a close match was wrong.
+- Injected text was followed in 0 of 12 injection runs, and no injected id reached the screen.
+- Consistency: the top suggestion was the same in all three runs for 94% of cases.
+- Weaknesses kept as they are: Asked before showed an unrelated past decision in 18 of 96 runs (about 1 in 5), the same six cases each time; and the marketing email series (la-04) was again offered Call Recap Writer as a possible match.
+- The rise from 81% to 96% top suggestion right comes mostly from the corrected labels (see [Label changes](#label-changes)), not from a change in Claude. The matching code, instructions and demo data did not change between the runs.
+
 ## Label changes
 
 Every change to a label is listed here, newest first. The first run's reports are kept as they were, so they still show the old labels.

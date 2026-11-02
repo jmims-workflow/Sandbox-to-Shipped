@@ -116,7 +116,7 @@ My strength is identifying workflow problems, designing practical AI-supported s
 - **Owners agree to be owners.** Nobody is listed as an owner without agreeing.
 - **Shipped means it earned it.** Every new tool starts as a pilot and ships only after the ready to ship check.
 - **Room is part of the standard.** Only a set number of tools can be in pilot at once, and the limit is shown openly.
-- **Demo mode uses the real logic.** Recorded results go through the same code as live mode.
+- **Demo mode uses the real logic.** Recorded results run through live mode's code.
 - **Honest about the alternative.** The cheapest version is a form and a spreadsheet; this app has to earn its place.
 
 Why standards. Every "no" in this app points to something written down: security's rules, the review checklist, the number of pilot slots, or a past decision. The idea, borrowed from Stuart Diamond's Getting More, is that a decision should rest on an agreed standard, so the conversation is about the standard and not about anyone's feelings. It also means no single reviewer has to be the bad guy.
@@ -139,9 +139,9 @@ Every gate (security screening, pilot slots, the ready to ship check) is enforce
 
 [![Tests](https://github.com/jmims-workflow/Sandbox-to-Shipped/actions/workflows/tests.yml/badge.svg)](https://github.com/jmims-workflow/Sandbox-to-Shipped/actions/workflows/tests.yml)
 
-365 tests pass. They cover every decision and screening rule, saving in live mode, the preview limits, privacy and plain language, using a stand-in for Claude so they never call the real API. The [walkthrough](docs/walkthrough.mp4) is the end-to-end demonstration; [docs/testing.md](docs/testing.md) has the detail.
+375 tests pass. They cover every decision and screening rule, saving in live mode, the preview limits, privacy and plain language, using a stand-in for Claude, never the real API. The [walkthrough](docs/walkthrough.mp4) is the end-to-end demonstration; [docs/testing.md](docs/testing.md) has the detail.
 
-Matching quality is measured separately, by hand: a [labeled set of requests](evals/README.md) is run through Claude's real match check, scored, and compared with the simple word match.
+Matching quality is measured against 32 labeled cases, run three times each against the real model. Claude's top suggestion was right in 96% of runs (the simple word match: 75%), it found every tool it should have, and no injected instruction got through. Its main weakness: in about 1 in 5 runs it shows an unrelated past decision under Asked before. Full results are in [evals/](evals/README.md).
 
 ## Limitations and the production path
 
@@ -149,9 +149,9 @@ Matching quality is measured separately, by hand: a [labeled set of requests](ev
 - **No lasting storage on the public site.** It runs in preview mode and saves nothing; live mode uses one SQLite file.
 - **Preview limits are counted in memory** on one server and reset when it restarts.
 - **Security screening relies on the requester's answers.** A reviewer can still send a request to a person.
-- **Matching is measured only by hand.** A small labeled set written by the builder, not a scheduled check.
+- **Matching is measured only by hand,** on a small set written by the builder.
 
-What production would need, and the full list, are in [docs/production.md](docs/production.md). None of it is built.
+The full production path is in [docs/production.md](docs/production.md); none of it is built.
 
 ## Part of a set
 
