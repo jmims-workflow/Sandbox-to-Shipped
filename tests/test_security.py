@@ -36,7 +36,7 @@ def test_northstar_rules_file():
 def test_only_public_information_needs_no_check():
     result = check_security(["public_only"], {}, RULES)
     assert result.result == "not_needed" and result.reasons == []
-    assert result.text == "Security check: not needed"
+    assert result.text == "Security screening: not needed"
 
 
 @pytest.mark.parametrize("answers", [ALL_NO, {}, {"sends_without_check": "yes", "keeps_elsewhere": "yes",
@@ -44,7 +44,7 @@ def test_only_public_information_needs_no_check():
 def test_sensitive_personal_always_goes_to_a_person_whatever_the_answers(answers):
     result = check_security(["sensitive_personal", "public_only"], answers, RULES)
     assert result.result == "person"
-    assert result.text == "Security check: a person from security will review this"
+    assert result.text == "Security screening: a person from security will review this"
     assert "sensitive personal information" in result.reasons[0]
 
 
@@ -53,7 +53,7 @@ def test_sensitive_personal_always_goes_to_a_person_whatever_the_answers(answers
 def test_all_no_with_an_approved_service_passes_automatically(kind, service):
     result = check_security([kind, "public_only"], {**ALL_NO, "ai_service": service}, RULES)
     assert result.result == "passed" and result.reasons == []
-    assert result.text == "Security check: passed automatically against security's rules"
+    assert result.text == "Security screening: passed automatically against security's rules"
 
 
 @pytest.mark.parametrize("question", ["sends_without_check", "keeps_elsewhere"])

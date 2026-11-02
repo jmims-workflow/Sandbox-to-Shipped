@@ -123,7 +123,7 @@ requests:
     timeline:
       - {label: Submitted, date: 13 days ago}
       - {label: Reviewer picked it up, date: 12 days ago}
-      - {label: Security check done, date: 9 days ago}
+      - {label: Security screening done, date: 9 days ago}
       - {label: Decided, date: 6 days ago}
     decision:
       outcome: not_approved
@@ -232,7 +232,7 @@ requests:
     timeline:
       - {label: Submitted, date: 147 days ago}
       - {label: Reviewer picked it up, date: 145 days ago}
-      - {label: Security check done, date: 140 days ago}
+      - {label: Security screening done, date: 140 days ago}
       - {label: Decided, date: 137 days ago}
     decision:
       outcome: approve_with_limits

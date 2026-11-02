@@ -201,7 +201,7 @@ def test_live_saves_the_security_result_with_the_request(live_app, live_client):
     html = live_client.get("/review").text
     assert "A person from security will review this." in html
     card = live_client.get(f"/review/{rid}").text
-    assert "Security check: a person from security will review this" in card
+    assert "Security screening: a person from security will review this" in card
     assert re.search(r'name="security_check" value="needed" checked', card)
     assert 'value="passed"' not in card
 
@@ -234,7 +234,7 @@ def test_demo_checklist_fills_the_security_item(demo_client):
     assert "was answered Not sure" in html
     html = demo_client.get("/review/r-1049").text
     assert re.search(r'name="security_check" value="needed" checked', html)
-    assert "Security check: a person from security will review this" in html
+    assert "Security screening: a person from security will review this" in html
 
 
 def test_reviewer_can_change_passed_automatically_to_needed(live_app, live_client):

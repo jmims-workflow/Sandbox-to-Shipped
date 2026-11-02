@@ -25,6 +25,14 @@ def test_first_visit_asks_for_a_name(live_app):
     assert c.get("/health").text == "ok"
 
 
+def test_welcome_page_opens_and_explains_a_missing_name(live_app):
+    c = TestClient(live_app)
+    page = c.get("/welcome?next=/tools")
+    assert page.status_code == 200 and "What should we call you?" in page.text
+    r = c.post("/welcome", data={"name": "", "next": "/tools"})
+    assert r.status_code == 400 and "Please enter your name" in r.text
+
+
 def test_submit_saves_request_with_claude_title_and_matches(live_app, live_client):
     seed(live_app)
     r = live_client.post("/", data=NEW_REQUEST, follow_redirects=False)
@@ -69,7 +77,7 @@ def test_security_check_needed_blocks_approval_in_the_app(live_app, live_client)
         "uses_customer_details": "yes", "security_check": "needed", "reason": "r", "what_would_change": "w",
     })
     assert r.status_code == 400
-    assert "Finish the security check before approving." in r.text
+    assert "Finish the security screening before approving." in r.text
 
 
 def test_draft_from_claude_does_not_choose_the_outcome(live_app, live_client):

@@ -17,7 +17,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import Session, SQLModel, create_engine, delete, select
 
 from .demo_data import DemoData
-from .models import CUSTOMER_INFO, Decision, Request, Tool
+from .models import CUSTOMER_INFO, SCREENING_LABELS, Decision, Request, Tool
 from .rules import latest_decision
 
 JSON_FIELDS = {
@@ -94,7 +94,7 @@ def journey_from_known(
     if origin is not None:
         add("requested", origin.submitted_at.date())
         for e in origin.timeline or []:
-            if str(e.get("label", "")).startswith("Security check") and e.get("date"):
+            if str(e.get("label", "")).startswith(SCREENING_LABELS) and e.get("date"):
                 add("security_done", date.fromisoformat(str(e["date"])[:10]))
     if decision is not None:
         team = (tool.teams or [tool.owner_team])[0]

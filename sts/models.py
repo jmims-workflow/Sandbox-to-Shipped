@@ -85,11 +85,15 @@ KEPT_USING: dict[str, str] = {
     "stopped": "No",
 }
 
+# Request timeline labels that mean security screening was recorded. Older live databases say
+# "Security check done", so both count.
+SCREENING_LABELS = ("Security screening", "Security check")
+
 # Each tool's journey. Every event has a date and an optional note.
 JOURNEY_EVENTS: dict[str, str] = {
     "requested": "Requested",
     "being_tried": "Pilot started",
-    "security_done": "Security check done",
+    "security_done": "Security screening done",
     "extended": "Pilot extended",
     "shipped": "Shipped",
     "reviewed": "Reviewed",

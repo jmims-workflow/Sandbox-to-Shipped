@@ -125,7 +125,7 @@ def test_upgraded_database_works_in_the_app(tmp_path):
     html = c.get("/tools/recap-tool").text
     assert "Ready to ship?" in html and "2 of 4 ready" in html and "Its journey" in html
     html = c.get("/tools/notes-helper").text
-    assert "1 of 4 ready" in html and "Record the security check" in html
+    assert "1 of 4 ready" in html and "Record the security screening" in html
     review = c.get("/review").text
     assert "Notes Helper" in review and "Old Drafter" in review  # Trial ended and Review due
     assert c.get("/tools/old-drafter").status_code == 200

@@ -42,7 +42,7 @@ def steps(html):
 def test_security_step_shows_this_requests_result(demo_client, data, status, line):
     html = demo_client.post("/", data={**BASE, **data}).text
     got = steps(html)
-    assert [s[1] for s in got] == ["Security check", "A reviewer decides", "You get a decision"]
+    assert [s[1] for s in got] == ["Security screening", "A reviewer decides", "You get a decision"]
     assert got[0][0] == status and got[0][2] == line
 
 

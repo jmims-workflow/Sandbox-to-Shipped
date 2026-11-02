@@ -12,6 +12,13 @@ from .demo_data import DemoDataError, check_demo_data, load_demo_data
 app = typer.Typer(help="Sandbox to Shipped: one front door for AI tool requests.", no_args_is_help=True)
 
 
+def _refuse_bad_settings(settings: Settings) -> None:
+    problem = settings.startup_problem()
+    if problem:
+        typer.echo("Not starting: " + problem, err=True)
+        raise typer.Exit(1)
+
+
 @app.command()
 def serve(
     host: str = typer.Option("0.0.0.0", help="Address to listen on."),
@@ -23,6 +30,7 @@ def serve(
 
     port = port or int(os.environ.get("PORT", "8080"))
     settings = Settings.from_env()
+    _refuse_bad_settings(settings)
     if settings.fell_back:
         typer.echo(f"STS_MODE is {settings.requested_mode} but ANTHROPIC_API_KEY is not set. Running the demo instead.")
     typer.echo(f"Sandbox to Shipped running in {settings.mode} mode on http://{host}:{port}")
@@ -38,6 +46,7 @@ def seed(
     from .store import LiveStore
 
     settings = Settings.from_env()
+    _refuse_bad_settings(settings)
     if settings.requested_mode != "live":
         typer.echo("Seeding is for live mode. Demo mode already loads the demo data on every start.")
         raise typer.Exit(1)

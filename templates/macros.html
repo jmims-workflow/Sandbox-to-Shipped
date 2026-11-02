@@ -117,7 +117,7 @@ Needed, and not recorded as done yet.
 {% macro ready_answers(t, rc) -%}
 <dl class="facts">
   <div><dt>Owner agreed to own it</dt><dd>{% if t.owner_agreed %}Yes. {{ t.owner_name }}, {{ t.owner_team }}.{% else %}Not recorded.{% endif %}</dd></div>
-  <div><dt>Security check</dt><dd>{{ security_text(t, rc) }}</dd></div>
+  <div><dt>Security screening</dt><dd>{{ security_text(t, rc) }}</dd></div>
   <div><dt>Did the team keep using it?</dt><dd>{{ KEPT_USING.get(rc.kept_using, "Not answered") }}</dd></div>
   <div><dt>Anything go wrong?</dt><dd>{{ rc.went_wrong or "Not answered" }}</dd></div>
   <div><dt>How it was tested</dt><dd>{{ rc.how_tested or "Not answered" }}</dd></div>
