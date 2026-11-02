@@ -1,0 +1,33 @@
+{
+  "request_id": "r-1050",
+  "matches": [
+    {
+      "tool_id": "call-recap-writer",
+      "confidence": "possible",
+      "reason": "It writes a personal follow-up for each prospect, though as an email rather than a video."
+    }
+  ],
+  "size_up": {
+    "title": "Personalized video messages for prospects",
+    "bullets": [
+      {
+        "label": "Closest match",
+        "text": "Call Recap Writer writes a personal note for each prospect, but not a video."
+      },
+      {
+        "label": "Information",
+        "text": "Uses prospect names and company names. A rep reviews each video before it goes out."
+      },
+      {
+        "label": "Worth asking",
+        "text": "Would a personal email from Call Recap Writer, with one shared video, do most of the job?"
+      }
+    ]
+  },
+  "drafts": {
+    "not_now": {
+      "reason": "This is a good idea, and it passed security's rules. Right now all of our pilot slots are in use, so we can't start a new pilot without shipping or retiring one first. We'll look at it again when the date comes up.",
+      "what_would_change": "A pilot slot opening up, or a version that reuses an approved tool."
+    }
+  }
+}

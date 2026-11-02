@@ -1,0 +1,45 @@
+{
+  "request_id": "r-1051",
+  "matches": [
+    {
+      "tool_id": "insight-dashboard-explainer",
+      "confidence": "possible",
+      "reason": "It explains Insight dashboards for customer meetings, but it doesn't read Connect usage reports."
+    }
+  ],
+  "size_up": {
+    "title": "Summarize Connect usage reports for business reviews",
+    "bullets": [
+      {
+        "label": "Closest match",
+        "text": "Insight Dashboard Explainer covers Insight dashboards, not Connect usage reports."
+      },
+      {
+        "label": "Information",
+        "text": "Uses customer names and internal notes. Nothing goes to the customer without a person checking."
+      },
+      {
+        "label": "Demand",
+        "text": "Four people across Customer success and renewals have asked for this."
+      },
+      {
+        "label": "Worth asking",
+        "text": "Could Insight Dashboard Explainer take a usage report as well as a dashboard?"
+      }
+    ]
+  },
+  "drafts": {
+    "not_now": {
+      "reason": "Business review summaries would save real time, and the request passed security's rules. All of our pilot slots are in use, so we're holding it for now rather than saying no. We'll look at it again on the date below.",
+      "what_would_change": "A pilot slot opening up. If Insight Dashboard Explainer can read usage reports, we could add this to it instead."
+    },
+    "approve": {
+      "reason": "Approved as a pilot with Customer success. Summaries of Connect usage reports save real time before business reviews, a person checks each one, and it passed security's rules.",
+      "what_would_change": "If summaries start going to customers without a person checking, we'd look at this again."
+    },
+    "use_existing": {
+      "reason": "Insight Dashboard Explainer already turns usage data into plain words for customer meetings. Ruth Adeyemi can show you how to use it with a usage report.",
+      "what_would_change": "If it can't read Connect usage reports, tell us and we'll look at a separate version."
+    }
+  }
+}

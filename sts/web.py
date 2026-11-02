@@ -42,6 +42,19 @@ from .rules import (
     needed_by_count,
     READY_TOTAL,
     REVIEW_MONTHS,
+    REVISIT_DEFAULT_MONTHS,
+    REVISIT_MAX_MONTHS,
+    STEP_STATUSES,
+    format_month,
+    is_not_now,
+    latest_decisions,
+    msg_slots_full,
+    next_steps,
+    reopen_request,
+    revisit_due,
+    revisit_is_due,
+    slot_count,
+    slots_line,
     Checklist,
     DecisionForm,
     NewTool,
@@ -83,6 +96,7 @@ from .security import (
     early_warnings,
     load_security_rules,
     needs_questions,
+    requester_line,
 )
 from .store import DemoStore, LiveStore
 
@@ -145,7 +159,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
     # Security's rules are checked at startup. A problem stops the app with a message naming the line.
     rules = load_security_rules(settings.security_rules_path)
     demo = load_demo_data(settings.demo_dir, rules=rules)
-    demo_provider = DemoProvider(demo.recorded, demo.requests)
+    demo_provider = DemoProvider(demo.recorded, demo.requests, demo.example_recorded)
     limiter = None
     if settings.is_live:
         store: Any = LiveStore(settings.data_dir)
@@ -196,6 +210,9 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         WARN_SENDS=WARN_SENDS,
         WARN_SENSITIVE=WARN_SENSITIVE,
         REVIEW_DAYS=settings.review_days,
+        PILOT_SLOTS=settings.pilot_slots,
+        STEP_STATUSES=STEP_STATUSES,
+        format_month=format_month,
         answer_text=lambda q, v: answer_text(q, v, rules),
         needed_by_count=needed_by_count,
         join_words=join_words,
@@ -227,9 +244,19 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
     def waiting_count() -> int:
         return sum(1 for r in store.list_requests() if r.status == "waiting")
 
+    def needs_items() -> list[dict]:
+        """Needs a decision: pilots that ran out, reviews that came due and Not now requests to look at again."""
+        today_ = store.now().date()
+        items = []
+        for n in needs_decision(store.list_tools(), today_):
+            items.append({**n, "name": n["tool"].name, "href": f"/tools/{n['tool'].id}"})
+        for n in revisit_due(store.list_requests(), store.list_decisions(), today_):
+            items.append({**n, "name": n["request"].title, "href": f"/review/{n['request'].id}"})
+        return items
+
     def badge_count() -> int:
-        """Waiting requests plus tools that need a decision."""
-        return waiting_count() + len(needs_decision(store.list_tools(), store.now().date()))
+        """Waiting requests plus tools and Not now requests that need a decision."""
+        return waiting_count() + len(needs_items())
 
     def visitor_address(req: HTTPRequest) -> str:
         """The visitor's address, used only to make a hashed key for the preview limit."""
@@ -336,13 +363,15 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         return dict(task="", team="", how_often="", who_uses="", info=[], extra="", whats_missing="", copied_from="",
                     answers={}, need_note="")
 
-    def example_form() -> dict:
-        ex = next((r for r in demo.requests if r.id == demo.example_request_id), None)
+    def example_form(key: str) -> Optional[dict]:
+        """A "Try an example" button's answers, or None for an unknown key."""
+        ex = next((e for e in demo.examples if e["key"] == key), None)
         if not ex:
-            return empty_form()
+            return None
         f = empty_form()
-        f.update(task=ex.task, team=ex.team, how_often=ex.how_often, who_uses=ex.who_uses, info=list(ex.info),
-                 answers=dict(ex.security_answers or {}))
+        form = ex["form"]
+        f.update(task=form["task"], team=form["team"], how_often=form["how_often"], who_uses=form["who_uses"],
+                 info=list(form["info"]), extra=form["extra"], answers=dict(form["answers"]))
         return f
 
     def open_requests(name: str) -> list[dict]:
@@ -351,8 +380,10 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         The person's own requests, and requests they are already on, are left out.
         """
         out = []
+        latest = latest_decisions(store.list_decisions())
         for r in sorted(store.list_requests(), key=lambda r: r.submitted_at, reverse=True):
-            if r.status not in OPEN_STATUSES or r.requester_name == name:
+            # Not now requests still count demand, so people can join them too.
+            if (r.status not in OPEN_STATUSES and not is_not_now(r, latest.get(r.id))) or r.requester_name == name:
                 continue
             if any(p.get("name") == name for p in r.needed_by or []):
                 continue
@@ -363,7 +394,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         """Decided requests for Asked before. Never includes who asked."""
         requests = {r.id: r for r in store.list_requests()}
         out = []
-        for d in sorted(store.list_decisions(), key=lambda d: d.decided_at, reverse=True):
+        for d in sorted(latest_decisions(store.list_decisions()).values(), key=lambda d: d.decided_at, reverse=True):
             r = requests.get(d.request_id)
             if r is None or r.status != "decided":
                 continue
@@ -392,7 +423,9 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         in_review = None
         if related_req and (other := store.get_request(related_req["request_id"])):
             # Only the title and status. Never who asked or who else is on it.
-            in_review = {"id": other.id, "title": other.title, "status": other.status, "why": related_req["reason"]}
+            other_d = store.decision_for(other.id)
+            status = "not_now" if is_not_now(other, other_d) else other.status
+            in_review = {"id": other.id, "title": other.title, "status": status, "why": related_req["reason"]}
         asked_before = None
         if related:
             d = next(p for p in past if p["id"] == related["request_id"])
@@ -446,6 +479,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
                   status_code: int = 200, need_error: str = ""):
         return render(
             req, "request_form.html", "request", status_code=status_code, f=f, errors=errors, panel=panel,
+            examples=demo.examples,
             notice=notice, warnings=early_warnings(f["info"], f["answers"]),
             show_questions=needs_questions(f["info"], rules), need_error=need_error,
         )
@@ -453,15 +487,17 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
     @app.get("/", response_class=HTMLResponse)
     def request_form(req: HTTPRequest):
         source = req.query_params.get("from", "")
+        example = req.query_params.get("example", "")
         notice = ""
+        # The form starts empty in every mode. An example fills it only when someone picks one.
+        f = empty_form()
         if source and (orig := store.get_request(source)):
-            f = empty_form()
             f.update(copy_request_fields(orig))
             notice = f"Your answers from “{orig.title}” are copied over. Change what's different."
-        elif not settings.is_live:
-            f = example_form()
-        else:
-            f = empty_form()
+        elif example and (ex := example_form(example)) is not None:
+            f = ex
+            label = next(e["label"] for e in demo.examples if e["key"] == example)
+            notice = f"Example filled in: {label}. Change anything you like, or clear it and write your own."
         # Opening the page uses the recorded results in live preview, so page views don't use up Claude calls.
         panel = check_matches(f["task"], f["info"], req, demo_provider if settings.is_preview else None) \
             if f["task"] else None
@@ -484,7 +520,39 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         if errors:
             panel = check_matches(f["task"], f["info"], req) if f["task"] and "task" not in errors else None
             return form_page(req, f, errors, panel, status_code=400)
+        request, p = build_request(f, form, req)
+        if store.read_only:
+            # Requesters never see Claude's read, so demo and live preview don't ask Claude for one here.
+            # The recorded or rule-based read gives the title, with no network call.
+            request.title = (demo_provider.size_up(request, store.list_tools(), []) or {}).get("title") or ""
+            fill_title(request)
+            return what_next_page(req, request, f)
+        size_up_error = ""
+        try:
+            request.size_up = p.size_up(request, store.list_tools(), recent_decisions())
+            request.title = request.size_up.get("title") or ""
+        except ClaudeUnavailable:
+            size_up_error = "Claude couldn't size up this request just now. A reviewer will read it as is."
+        fill_title(request)
+        store.save(request)
+        target = f"/requests/{request.id}?submitted=1"
+        if size_up_error:
+            target += "&note=sizeup"
+        return RedirectResponse(target, status_code=303)
 
+    def recent_decisions() -> list[dict]:
+        return [
+            {"outcome": d.outcome, "reason": d.reason, "what_would_change": d.what_would_change}
+            for d in sorted(store.list_decisions(), key=lambda d: d.decided_at, reverse=True)
+        ]
+
+    def fill_title(request: Request) -> None:
+        if not request.title:
+            words = request.task.split()
+            request.title = " ".join(words[:6]) + ("..." if len(words) > 6 else "")
+
+    def build_request(f: dict, form, req: HTTPRequest) -> tuple[Request, Any]:
+        """A request from a valid form, with its matches and automatic security check. Not saved."""
         inventory = store.list_tools()
         seen = True
         try:
@@ -496,7 +564,6 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             seen = False
             shown = check_matches(f["task"], f["info"], req, p)["raw"]
         matches = clean_matches(shown, inventory)
-
         now = store.now()
         request = Request(
             id=store.new_request_id(),
@@ -520,41 +587,17 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             security_result=check_security(f["info"], f["answers"], rules).as_dict(),
             needed_by=[],
         )
-        recent = [
-            {"outcome": d.outcome, "reason": d.reason, "what_would_change": d.what_would_change}
-            for d in sorted(store.list_decisions(), key=lambda d: d.decided_at, reverse=True)
-        ]
-        size_up_error = ""
-        try:
-            request.size_up = p.size_up(request, inventory, recent)
-            request.title = request.size_up.get("title") or ""
-        except ClaudeUnavailable:
-            size_up_error = "Claude couldn't size up this request just now. A reviewer will read it as is."
-        if not request.title:
-            words = request.task.split()
-            request.title = " ".join(words[:6]) + ("..." if len(words) > 6 else "")
+        return request, p
 
-        if store.read_only:
-            if getattr(p, "used_claude", False) and not getattr(p, "limited", False):
-                source = "claude"
-            else:
-                source = "recorded" if p.recorded_for_task(request.task) else "rules"
-            return render(
-                req,
-                "what_next.html",
-                "request",
-                r=request,
-                tools=tool_map(),
-                saw_line=saw_line(request, tool_map()),
-                size_up_source=source,
-                limited=bool(getattr(p, "limited", False)),
-                claude_read_label="Only reviewers see this",
-            )
-        store.save(request)
-        target = f"/requests/{request.id}?submitted=1"
-        if size_up_error:
-            target += "&note=sizeup"
-        return RedirectResponse(target, status_code=303)
+    def security_step_line(r: Request) -> str:
+        if not r.security_result:
+            return "A reviewer will check whether security needs to look."
+        return requester_line(r.info, r.security_answers, rules)
+
+    def what_next_page(req: HTTPRequest, r: Request, f: Optional[dict] = None):
+        """Here's what happens next, from the requester's side. Claude's read is never shown here."""
+        steps = next_steps(r, settings.review_days, security_step_line(r))
+        return render(req, "what_next.html", "request", r=r, steps=steps, f=f)
 
     @app.post("/api/matches", response_class=HTMLResponse)
     async def api_matches(req: HTTPRequest):
@@ -583,7 +626,9 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             error = "We couldn't find that request. You can still submit yours."
         else:
             try:
-                add_needed_by(r, display_name(req, "requester"), f["need_note"], store.now().date())
+                latest = store.decision_for(r.id)
+                add_needed_by(r, display_name(req, "requester"), f["need_note"], store.now().date(),
+                              latest.outcome if latest else "")
             except RequestChangeError as exc:
                 error = str(exc)
         if error:
@@ -608,7 +653,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
 
     @app.get("/requests", response_class=HTMLResponse)
     def requests_list(req: HTTPRequest):
-        decisions = {d.request_id: d for d in store.list_decisions()}
+        decisions = latest_decisions(store.list_decisions())
         items = [{"r": r, "d": decisions.get(r.id)} for r in my_requests(req)]
         also = [{"r": r, "d": decisions.get(r.id)} for r in needed_too(req)]
         added = store.get_request(req.query_params.get("needed", "")) if req.query_params.get("needed") else None
@@ -619,7 +664,8 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         mine = r.requester_name == name
         my_note = next((p.get("note") for p in r.needed_by or [] if p.get("name") == name), None)
         also = not mine and any(p.get("name") == name for p in r.needed_by or [])
-        d = store.decision_for(r.id)
+        # A request reopened after Not now is waiting again: its earlier decision stays in the history.
+        d = store.decision_for(r.id) if r.status == "decided" else None
         tools = tool_map()
         open_tool = None
         if d:
@@ -635,6 +681,12 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         if not r:
             return render(req, "message.html", "mine", status_code=404, heading="We couldn't find that request",
                           body="It may have been removed. Your other requests are on My requests.")
+        if req.query_params.get("submitted") == "1" and r.status in OPEN_STATUSES \
+                and r.requester_name == display_name(req, "requester"):
+            # Right after sending: one clear story of what happens next.
+            return render(req, "what_next.html", "mine", r=r,
+                          steps=next_steps(r, settings.review_days, security_step_line(r)), f=None,
+                          sizeup_note=req.query_params.get("note") == "sizeup")
         ctx = request_page_context(r, req)
         return render(
             req, "request_page.html", "mine", **ctx,
@@ -888,7 +940,8 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             # Only what is safe to show everyone. Never the requester's name.
             items.append(
                 {"id": r.id, "title": r.title, "outcome": d.outcome, "reason": d.reason,
-                 "what_would_change": d.what_would_change, "decided_at": d.decided_at}
+                 "what_would_change": d.what_would_change, "decided_at": d.decided_at,
+                 "revisit_on": d.revisit_on}
             )
         return render(req, "decided.html", "decided", items=items, q=q, outcome=outcome)
 
@@ -938,6 +991,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
                 allowed_info=list(r.info),
                 trial_ends=(now + timedelta(days=60)).date(),
             ),
+            revisit_on=add_months(now.date(), REVISIT_DEFAULT_MONTHS),
         )
 
     def form_from_dict(data: dict) -> DecisionForm:
@@ -950,6 +1004,12 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
                 trial = date.fromisoformat(str(data.get("tool_trial_ends")))
         except ValueError:
             trial = None
+        revisit = None
+        try:
+            if data.get("revisit_on"):
+                revisit = date.fromisoformat(str(data.get("revisit_on")))
+        except ValueError:
+            revisit = None
         allowed = data.get("tool_allowed_info") or []
         if isinstance(allowed, str):
             allowed = [allowed]
@@ -975,13 +1035,14 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
                 allowed_info=[i for i in allowed if i in INFO_KINDS],
                 trial_ends=trial,
             ),
+            revisit_on=revisit,
         )
 
     def form_to_dict(form) -> dict:
         keys = (
             "outcome", "already_exists", "sends_without_check", "uses_customer_details", "security_check",
             "existing_tool_id", "limits", "reason", "what_would_change", "drafted_reason", "tool_name",
-            "tool_purpose", "tool_owner_name", "tool_owner_team", "owner_agreed", "tool_trial_ends",
+            "tool_purpose", "tool_owner_name", "tool_owner_team", "owner_agreed", "tool_trial_ends", "revisit_on",
         )
         data = {k: str(form.get(k) or "") for k in keys}
         data["tool_allowed_info"] = list(form.getlist("tool_allowed_info"))
@@ -1000,14 +1061,21 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             draft_note="",
             draft_error="",
             flash="",
-            needs=needs_decision(list(tools.values()), now.date()),
+            needs=needs_items(),
+            slots=(slots := slot_count(list(tools.values()), settings.pilot_slots)),
+            slots_line=slots_line(slots),
+            slots_full_line=msg_slots_full(slots["total"]),
+            revisit_max=add_months(now.date(), REVISIT_MAX_MONTHS),
+            sample=False,
         )
         if r is not None:
             form = form or default_form(r, now)
+            latest = store.decision_for(r.id) if r.status == "decided" else None
             ctx.update(
                 form=form,
                 warnings=warnings_for(form),
-                decision=store.decision_for(r.id) if r.status == "decided" else None,
+                decision=latest,
+                revisit=revisit_is_due(r, latest, now.date()),
                 saw_line=saw_line(r, tools),
                 open_questions=[q for q in r.questions if not q.get("handled")],
                 auto_result=auto_security(r),
@@ -1042,6 +1110,34 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             flash = "Marked as handled."
         return review_render(req, items[0] if items else None, flash=flash)
 
+    @app.post("/review/sample", response_class=HTMLResponse)
+    async def review_sample(req: HTTPRequest):
+        """Demo and live preview: show a request that was just sent, the way a reviewer would see it.
+
+        Nothing is saved. Claude's read is made here, on a button press, never on a page open.
+        In live preview it uses real Claude within the existing limits.
+        """
+        if not store.read_only:
+            return RedirectResponse("/review", status_code=303)
+        form = await req.form()
+        f = read_request_form(form)
+        if validate_request_form(f):
+            return RedirectResponse("/", status_code=303)
+        r, p = build_request(f, form, req)
+        source = "claude"
+        try:
+            r.size_up = p.size_up(r, store.list_tools(), recent_decisions())
+            r.title = (r.size_up or {}).get("title") or ""
+            if not (getattr(p, "used_claude", False) and not getattr(p, "limited", False)):
+                source = "recorded" if p.recorded_for_task(r.task) else "rules"
+        except ClaudeUnavailable:
+            r.size_up = None
+        fill_title(r)
+        resp = review_render(req, r, viewer="reviewer", sample=True, size_up_source=source,
+                             limited=bool(getattr(p, "limited", False)))
+        resp.set_cookie("sts_viewer", "reviewer", max_age=60 * 60 * 24 * 365, samesite="lax", httponly=True)
+        return resp
+
     @app.get("/review/{request_id}", response_class=HTMLResponse)
     def review_one(req: HTTPRequest, request_id: str):
         if (blocked := need_reviewer(req)) is not None:
@@ -1049,7 +1145,9 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         r = store.get_request(request_id)
         if not r:
             return RedirectResponse("/review", status_code=303)
-        return review_render(req, r)
+        flash = "Reopened. It's waiting for a decision again, with its history kept." \
+            if req.query_params.get("reopened") else ""
+        return review_render(req, r, flash=flash)
 
     def make_draft(r: Request, form: DecisionForm, req: HTTPRequest) -> tuple[Optional[dict], str, bool]:
         """Returns (draft, error, limited). limited is True when the live preview limit was reached."""
@@ -1059,7 +1157,8 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         chosen = tools.get(form.existing_tool_id) if form.outcome == "use_existing" else None
         p = prov(req)
         try:
-            draft = p.draft_reason(r, form.outcome, form.checklist.as_dict(), chosen, form.limits)
+            revisit = format_month(form.revisit_on) if form.outcome == "not_now" and form.revisit_on else ""
+            draft = p.draft_reason(r, form.outcome, form.checklist.as_dict(), chosen, form.limits, revisit)
         except ClaudeUnavailable:
             return None, "Claude couldn't draft a reason just now. You can write it yourself.", False
         limited = bool(getattr(p, "limited", False))
@@ -1088,6 +1187,16 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             return review_render(req, r, form, draft_error=err, draft_limited=limited,
                                  draft_note="Drafted by Claude from your checklist. Edit it before sending." if draft else "")
 
+        if action == "reopen":
+            if store.read_only:
+                return review_render(req, r, form, status_code=400, flash=DEMO_READONLY)
+            try:
+                reopen_request(r, store.decision_for(r.id), store.now().date())
+            except RequestChangeError as exc:
+                return review_render(req, r, form, status_code=400, flash=str(exc))
+            store.save(r)
+            return RedirectResponse(f"/review/{r.id}?reopened=1", status_code=303)
+
         if action == "handled":
             if store.read_only:
                 return review_render(req, r, form, status_code=400, flash=DEMO_READONLY)
@@ -1109,10 +1218,13 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             store.save(r)
             return RedirectResponse("/review?saved=1", status_code=303)
 
-        if r.status == "decided":
+        # A decided request takes a new decision only when it's a Not now whose revisit date has arrived.
+        if r.status == "decided" and not revisit_is_due(r, store.decision_for(r.id), now.date()):
             return review_render(req, r, form, status_code=400, flash="This request already has a decision.")
         inventory = store.list_tools()
-        errors = validate_decision(form, inventory, auto_security(r))
+        # Pilot slots are enforced here, on the server, whatever the page showed.
+        errors = validate_decision(form, inventory, auto_security(r), today=now.date(),
+                                   pilot_slots=settings.pilot_slots)
         if errors:
             return review_render(req, r, form, status_code=400, errors=errors)
 
@@ -1128,7 +1240,7 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
             e["label"].startswith("Security check") for e in timeline
         ):
             timeline.append({"label": "Security check done", "date": today})
-        timeline.append({"label": "Decided", "date": today})
+        timeline.append({"label": "Decided again" if r.status == "decided" else "Decided", "date": today})
         r.timeline = timeline
         r.status = "decided"
         r.draft = None

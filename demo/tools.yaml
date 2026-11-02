@@ -143,6 +143,20 @@ tools:
     journey:
       - {kind: being_tried, date: 63 days ago, note: "By Partnerships, for 60 days."}
 
+  - id: event-follow-up-notes
+    name: Event Follow-up Notes
+    purpose: Turns a rep's notes from an event booth into a short follow-up note for each visitor.
+    owner_name: Lena Ortiz
+    owner_team: Field Marketing
+    teams: [Field Marketing]
+    status: being_tried
+    allowed_info: [public_only, internal_notes]
+    security_check: passed
+    trial_ends: in 3 weeks
+    link: https://tools.northstar.example/event-follow-up-notes
+    journey:
+      - {kind: being_tried, date: 39 days ago, note: "By Field Marketing, for 60 days."}
+
   - id: subject-line-tester
     name: Subject Line Tester
     purpose: Suggested email subject lines for marketing sends.

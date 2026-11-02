@@ -20,6 +20,7 @@
   {% for it in items %}
   <li class="card" id="decision-{{ it.id }}">
     <div class="list-item" style="margin-bottom:8px"><h2>{{ it.title }}</h2>{{ label(it.outcome) }}</div>
+    {% if it.outcome == "not_now" and it.revisit_on %}<p><strong>We'll look at this again in {{ format_month(it.revisit_on) }}.</strong></p>{% endif %}
     <p>{{ it.reason }}</p>
     <div class="callout"><strong>What would change the answer:</strong> {{ it.what_would_change }}</div>
     <p class="muted small" style="margin:0">Decided {{ it.decided_at|date }}</p>

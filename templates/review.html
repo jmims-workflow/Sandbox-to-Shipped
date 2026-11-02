@@ -6,14 +6,23 @@
 <p class="page-intro">Requests waiting for a decision. Claude sizes each one up and can draft the reason. You decide.</p>
 {% if flash %}<p class="notice {{ 'notice-info' if read_only and flash == DEMO_READONLY else 'notice-ok' }}" role="status">{{ flash }}</p>{% endif %}
 
+<section class="card slots-card{% if slots.full %} is-full{% endif %}" aria-labelledby="slots-h">
+  <h2 id="slots-h" class="slots-line">{{ icon("flask", 20) }}<span>{{ slots_line }}</span></h2>
+  {% if slots.pilots %}
+  <ul class="slot-list">
+    {% for t in slots.pilots %}<li><a href="/tools/{{ t.id }}">{{ t.name }}</a>{% if "trial_ended" in tool_flags(t) %} <span class="muted small">(pilot ended)</span>{% endif %}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
 {% if needs %}
 <section class="card needs-card" aria-labelledby="needs-h">
   <h2 id="needs-h">Needs a decision</h2>
-  <p class="muted small">Pilots that ran out and reviews that came due. Open a tool to ship it, extend the pilot, mark it reviewed or retire it.</p>
+  <p class="muted small">Pilots that ran out, reviews that came due and Not now requests ready for another look. Open one to ship it, extend the pilot, mark it reviewed, retire it, reopen it or decide again.</p>
   <ul class="list">
     {% for n in needs %}
     <li class="needs-item">
-      <div class="list-item"><a href="/tools/{{ n.tool.id }}"><strong>{{ n.tool.name }}</strong></a>{{ label(n.flag) }}</div>
+      <div class="list-item"><a href="{{ n.href }}"><strong>{{ n.name }}</strong></a>{{ label(n.flag) }}</div>
       <p class="small" style="margin:0">{{ n.line }}</p>
     </li>
     {% endfor %}
@@ -34,8 +43,14 @@
 
 <div class="two-col wide-right">
   <nav aria-label="Requests to review">
-    {% if queue %}
+    {% if queue or sample %}
     <ul class="queue">
+      {% if sample %}
+      <li><a href="#sel-h" aria-current="true">
+        <span class="q-title">{{ sel.title }}</span>
+        <span class="q-line">{{ sel.team }}. Just sent. Not saved, because this is the demo.</span>
+      </a></li>
+      {% endif %}
       {% for item in queue %}
       <li><a href="/review/{{ item.r.id }}"{% if sel and sel.id == item.r.id %} aria-current="true"{% endif %}>
         <span class="q-title">{{ item.r.title }}</span>
@@ -51,7 +66,7 @@
 
   {% if sel %}
   {% set r = sel %}
-  <div class="stack">
+  <div class="stack" id="sel-h" tabindex="-1">
     {% for q in open_questions %}
     <div class="question-box" role="note">
       <strong>The requester asked about this decision ({{ q.date|date }}):</strong>
@@ -62,21 +77,36 @@
     {% include "partials/request_card.html" %}
     {% include "partials/claude_read.html" %}
 
-    {% if r.status == "decided" and decision %}
+    {% if sample %}
+    <section class="card" aria-labelledby="sample-h">
+      <h2 id="sample-h">Your decision</h2>
+      <p style="margin:0">This request wasn't saved, so there's nothing to decide here. Pick a request in the queue to try the checklist.</p>
+    </section>
+    {% elif r.status == "decided" and decision %}
     <section class="card" aria-labelledby="sent-h">
       <h2 id="sent-h">The decision that was sent</h2>
       <p>{{ label(decision.outcome) }}</p>
       <p>{{ decision.reason }}</p>
+      {% if decision.outcome == "not_now" and decision.revisit_on %}<p><strong>Look again:</strong> {{ decision.revisit_on|date }}</p>{% endif %}
       <div class="callout"><strong>What would change the answer:</strong> {{ decision.what_would_change }}</div>
+      {% if revisit %}
+      <p class="muted small">Decided {{ decision.decided_at|date }} by {{ decision.decided_by }}. The date to look again has arrived. Reopen it to put it back in the queue, or decide again below.</p>
+      <form method="post" action="/review/{{ r.id }}">
+        <button type="submit" class="btn btn-secondary" name="action" value="reopen"{% if read_only %} disabled aria-describedby="reopen-demo"{% endif %}>Reopen it</button>
+        {% if read_only %}<p class="muted small" id="reopen-demo" style="margin:8px 0 0">{{ DEMO_READONLY }}</p>{% endif %}
+      </form>
+      {% else %}
       <p class="muted small">Decided {{ decision.decided_at|date }} by {{ decision.decided_by }}. Answer the requester directly, then mark the question as handled. If the answer changes, they can start a new request from this one.</p>
       <form method="post" action="/review/{{ r.id }}">
         <button type="submit" class="btn" name="action" value="handled"{% if read_only %} disabled aria-describedby="handled-demo"{% endif %}>Mark question as handled</button>
         {% if read_only %}<p class="muted small" id="handled-demo" style="margin:8px 0 0">{{ DEMO_READONLY }}</p>{% endif %}
       </form>
+      {% endif %}
     </section>
-    {% else %}
+    {% endif %}
+    {% if not sample and (r.status != "decided" or revisit) %}
     <form method="post" action="/review/{{ r.id }}" class="card" id="decision-form" novalidate data-draft-url="/api/review/{{ r.id }}/draft" aria-labelledby="decide-h">
-      <h2 id="decide-h">Your decision</h2>
+      <h2 id="decide-h">{{ "Decide again" if revisit else "Your decision" }}</h2>
 
       {% if errors %}
       <div class="notice notice-error" role="alert">
@@ -106,15 +136,23 @@
         {{ icon("info", 18) }} Northstar doesn't approve tools that send to customers on their own.
       </div>
 
-      <fieldset class="field"{{ described(errors, "outcome") }}>
+      <fieldset class="field"{{ described(errors, "outcome", "slots-full" if slots.full else None) }}>
         <legend id="outcome">Outcome</legend>
+        {% if slots.full %}<p class="hint" id="slots-full">{{ icon("info", 18) }} {{ slots_full_line }}</p>{% endif %}
         <div class="outcomes">
           {% for key, text in OUTCOME_CHOICES.items() %}
-          <label class="outcome-card"><input type="radio" name="outcome" value="{{ key }}"{% if form.outcome == key %} checked{% endif %}> {{ text }}</label>
+          {% set blocked = slots.full and key in ("approve", "approve_with_limits") %}
+          <label class="outcome-card{% if blocked %} is-disabled{% endif %}"><input type="radio" name="outcome" value="{{ key }}"{% if form.outcome == key and not blocked %} checked{% endif %}{% if blocked %} disabled{% endif %}> {{ text }}</label>
           {% endfor %}
         </div>
         {{ field_error(errors, "outcome") }}
       </fieldset>
+
+      <div class="field js-cond" data-for="not_now">
+        <label for="revisit_on">Look at this again on <span class="muted">(for Not now, within 6 months)</span></label>
+        <input type="date" id="revisit_on" name="revisit_on" max="{{ revisit_max.isoformat() }}" value="{{ form.revisit_on.isoformat() if form.revisit_on else '' }}"{{ described(errors, "revisit_on") }}>
+        {{ field_error(errors, "revisit_on") }}
+      </div>
 
       <div class="field js-cond" data-for="use_existing">
         <label for="existing_tool_id">Tool to point to <span class="muted">(for Use an existing tool)</span></label>

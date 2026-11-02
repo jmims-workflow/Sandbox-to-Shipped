@@ -29,6 +29,8 @@ class Settings:
     security_rules_path: Path = ROOT / "security_rules.yaml"
     # How many working days reviewers usually take to answer.
     review_days: int = 5
+    # How many tools can be in pilot at once.
+    pilot_slots: int = 3
     # Live preview limits on Claude calls.
     daily_claude_calls: int = 100
     visitor_claude_calls_per_hour: int = 10
@@ -68,6 +70,7 @@ class Settings:
             model=os.environ.get("STS_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL,
             data_dir=Path(os.environ.get("DATA_DIR", "./data")),
             review_days=_int_env("STS_REVIEW_DAYS", 5) or 5,
+            pilot_slots=_int_env("STS_PILOT_SLOTS", 3) or 3,
             daily_claude_calls=_int_env("STS_DAILY_CLAUDE_CALLS", 100),
             visitor_claude_calls_per_hour=_int_env("STS_VISITOR_CLAUDE_CALLS_PER_HOUR", 10),
         )

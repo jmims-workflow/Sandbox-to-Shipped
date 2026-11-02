@@ -41,7 +41,7 @@ from .models import (
 )
 from .config import ROOT
 from .provider import DraftReason, MatchItem, RelatedDecision, RelatedRequest, SizeUp
-from .rules import add_months, format_month
+from .rules import REVISIT_MAX_MONTHS, add_months, format_month
 from .security import SecurityRules, SecurityRulesError, check_security, load_security_rules
 
 OFFSET_HELP = 'use an offset from today, for example "today", "3 days ago" or "in 2 weeks"'
@@ -151,8 +151,11 @@ class ChecklistIn(Strict):
     security_check: Literal["not_needed", "passed", "needed", "done"]
 
 
+OutcomeKind = Literal["approve", "approve_with_limits", "use_existing", "not_approved", "not_now"]
+
+
 class DecisionIn(Strict):
-    outcome: Literal["approve", "approve_with_limits", "use_existing", "not_approved"]
+    outcome: OutcomeKind
     checklist: ChecklistIn
     existing_tool_id: Optional[str] = None
     limits: Optional[str] = None
@@ -162,9 +165,17 @@ class DecisionIn(Strict):
     reason_edited: bool = False
     decided_by: str
     decided_at: RelDate
+    revisit_on: Optional[RelDate] = None
 
     @model_validator(mode="after")
     def _outcome_fields(self):
+        if self.outcome == "not_now":
+            if not self.revisit_on:
+                raise ValueError("revisit_on is required when outcome is not_now")
+            if not self.decided_at < self.revisit_on <= add_months(self.decided_at, REVISIT_MAX_MONTHS):
+                raise ValueError(f"revisit_on must be after decided_at and within {REVISIT_MAX_MONTHS} months of it")
+        elif self.revisit_on:
+            raise ValueError("only a not_now decision has revisit_on")
         if self.outcome == "use_existing" and not self.existing_tool_id:
             raise ValueError("existing_tool_id is required when outcome is use_existing")
         if self.outcome == "approve_with_limits" and not self.limits:
@@ -250,9 +261,51 @@ class RecordedFile(Strict):
     request_id: str
     matches: list[MatchItem]
     size_up: SizeUp
-    drafts: dict[Literal["approve", "approve_with_limits", "use_existing", "not_approved"], DraftReason] = {}
+    drafts: dict[OutcomeKind, DraftReason] = {}
     related_decision: Optional[RelatedDecision] = None
     related_request: Optional[RelatedRequest] = None
+
+
+class ExampleRecordedIn(Strict):
+    """Recorded Claude results for an example that isn't a demo request."""
+
+    matches: list[MatchItem] = []
+    size_up: SizeUp
+    related_decision: Optional[RelatedDecision] = None
+    related_request: Optional[RelatedRequest] = None
+
+
+class ExampleIn(Strict):
+    """One "Try an example" button on Request a tool. It fills the whole form."""
+
+    key: str
+    label: str
+    task: str
+    team: str
+    how_often: Literal["every_day", "few_week", "few_month", "rarely"]
+    who_uses: Literal["just_me", "my_team", "several_teams"]
+    info: list[InfoKind]
+    security_answers: Optional[SecurityAnswersIn] = None
+    extra: str = ""
+    # Leave out when the task is a demo request's task: that request's recording is used.
+    recorded: Optional[ExampleRecordedIn] = None
+
+    @field_validator("team")
+    @classmethod
+    def _team(cls, v):
+        if v not in TEAMS:
+            raise ValueError(f"team must be one of: {', '.join(TEAMS)}")
+        return v
+
+    @model_validator(mode="after")
+    def _answers(self):
+        if any(i != "public_only" for i in self.info) and self.security_answers is None:
+            raise ValueError("security_answers is required when info includes anything other than public_only")
+        return self
+
+
+class ExamplesFile(Strict):
+    examples: list[ExampleIn]
 
 
 class DemoDataError(ValueError):
@@ -292,6 +345,10 @@ class DemoData:
     demo_reviewer: str
     example_request_id: str = ""
     problems: list[str] = field(default_factory=list)
+    # The "Try an example" buttons: {"key", "label", "form": {...}}, in order.
+    examples: list[dict] = field(default_factory=list)
+    # Recorded results for example tasks that aren't demo requests, keyed by example key.
+    example_recorded: dict[str, dict] = field(default_factory=dict)
 
 
 def _at(d: date, hour: int = 10) -> datetime:
@@ -315,7 +372,15 @@ def load_demo_data(
 
     tools_raw = _read_yaml(demo_dir / "tools.yaml", problems)
     reqs_raw = _read_yaml(demo_dir / "requests.yaml", problems)
-    tools_file = reqs_file = None
+    ex_name = "demo/examples.yaml"
+    ex_raw = _read_yaml(demo_dir / "examples.yaml", problems) if (demo_dir / "examples.yaml").exists() else {
+        "examples": []}
+    tools_file = reqs_file = ex_file = None
+    if ex_raw is not None:
+        try:
+            ex_file = ExamplesFile.model_validate(ex_raw)
+        except ValidationError as exc:
+            problems += _fmt(ex_name, "", exc)
     if tools_raw is not None:
         try:
             tools_file = ToolsFile.model_validate(tools_raw, context=ctx)
@@ -349,6 +414,31 @@ def load_demo_data(
 
     # Cross-file checks.
     tool_ids = [t.id for t in tools_file.tools]
+    decided_ids = {r.id for r in reqs_file.requests if r.decision}
+    # Requests "I need this too" can join: still open, or decided as Not now.
+    open_ids = {r.id for r in reqs_file.requests if r.status in ("waiting", "in_review")
+                or (r.decision and r.decision.outcome == "not_now")}
+    task_ids = {" ".join(r.task.lower().split()): r.id for r in reqs_file.requests}
+    keys = [e.key for e in ex_file.examples]
+    if len(set(keys)) != len(keys):
+        problems.append(f"{ex_name}, examples: two examples share the same key")
+    for i, e in enumerate(ex_file.examples):
+        where = f"{ex_name}, examples[{i}]"
+        if e.recorded is None and " ".join(e.task.lower().split()) not in task_ids:
+            problems.append(f"{where}.recorded: needed unless the task is a demo request's task")
+        rec = e.recorded
+        for j, m in enumerate(rec.matches if rec else []):
+            if m.tool_id not in tool_ids:
+                problems.append(f"{where}.recorded.matches[{j}].tool_id: no tool with id {m.tool_id!r}")
+        if rec and rec.related_decision and rec.related_decision.request_id not in decided_ids:
+            problems.append(f"{where}.recorded.related_decision.request_id: no decided request with id "
+                            f"{rec.related_decision.request_id!r}")
+        if rec and rec.related_request and rec.related_request.request_id not in open_ids:
+            problems.append(f"{where}.recorded.related_request.request_id: no waiting, in review or Not now "
+                            f"request with id {rec.related_request.request_id!r}")
+        service = e.security_answers.ai_service if e.security_answers else None
+        if service and service not in rules.service_choices():
+            problems.append(f"{where}.security_answers.ai_service: use one of " + ", ".join(rules.service_choices()))
     if len(set(tool_ids)) != len(tool_ids):
         problems.append(f"{tools_name}, tools: two tools share the same id")
     req_ids = {r.id for r in reqs_file.requests}
@@ -372,18 +462,16 @@ def load_demo_data(
             if m["tool_id"] not in tool_ids:
                 problems.append(f"demo/recorded/{rid}.json, matches[{j}].tool_id: no tool with id {m['tool_id']!r}")
         related = rec.get("related_decision")
-        decided_ids = {r.id for r in reqs_file.requests if r.decision}
         if related and related["request_id"] not in decided_ids:
             problems.append(
                 f"demo/recorded/{rid}.json, related_decision.request_id: no decided request with id "
                 f"{related['request_id']!r}"
             )
         related_req = rec.get("related_request")
-        open_ids = {r.id for r in reqs_file.requests if r.status in ("waiting", "in_review")}
         if related_req and related_req["request_id"] not in open_ids:
             problems.append(
-                f"demo/recorded/{rid}.json, related_request.request_id: no waiting or in review request with id "
-                f"{related_req['request_id']!r}"
+                f"demo/recorded/{rid}.json, related_request.request_id: no waiting, in review or Not now request "
+                f"with id {related_req['request_id']!r}"
             )
     for i, r in enumerate(reqs_file.requests):
         service = r.security_answers.ai_service if r.security_answers else None
@@ -432,7 +520,18 @@ def load_demo_data(
         (r.id for r in requests if r.requester_name == reqs_file.demo_requester and r.status == "waiting"),
         "",
     )
+    examples = []
+    example_recorded = {}
+    for e in ex_file.examples:
+        form = {"task": " ".join(e.task.split()), "team": e.team, "how_often": e.how_often,
+                "who_uses": e.who_uses, "info": list(e.info), "extra": e.extra,
+                "answers": e.security_answers.model_dump() if e.security_answers else {}}
+        examples.append({"key": e.key, "label": e.label, "form": form})
+        if e.recorded:
+            example_recorded[e.key] = {"task": form["task"], **e.recorded.model_dump(mode="json")}
     return DemoData(
+        examples=examples,
+        example_recorded=example_recorded,
         tools=tools,
         requests=requests,
         decisions=decisions,

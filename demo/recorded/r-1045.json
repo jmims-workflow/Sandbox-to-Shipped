@@ -44,6 +44,10 @@
     "not_approved": {
       "reason": "We're not approving this as a separate tool right now. Partner Outreach Drafts is still in pilot, and we'd like to see how it does before adding a second partner writing tool.",
       "what_would_change": "When the outreach pilot ends on January 10, ask again and we'll look at this with what we've learned."
+    },
+    "not_now": {
+      "reason": "A partner one-pager is a good idea, but all of our pilot slots are in use right now. Rather than say no, we'll hold it and look again on the date below.",
+      "what_would_change": "A pilot slot opening up, or a version that builds on Partner Outreach Drafts."
     }
   }
 }

@@ -2,7 +2,7 @@
 <section class="card" aria-labelledby="req-title">
   <div class="list-item" style="margin-bottom:8px">
     <h2 id="req-title" style="margin:0">{{ r.title }}</h2>
-    <span class="label-row">{{ label(r.status) }}{% if show_needed_by and needed_by_count(r) > 1 %}<span class="needed-by">Needed by {{ needed_by_count(r) }} people</span>{% endif %}</span>
+    <span class="label-row">{% if decision %}{{ label(decision.outcome) }}{% else %}{{ label(r.status) }}{% endif %}{% if show_needed_by and needed_by_count(r) > 1 %}<span class="needed-by">Needed by {{ needed_by_count(r) }} people</span>{% endif %}</span>
   </div>
   <p>{{ r.task }}</p>
   {{ request_details(r) }}

@@ -157,7 +157,9 @@ def test_live_count_and_notes_for_reviewers_names_hidden_from_requesters(live_ap
     assert needed_by_count(store.get_request("r-1047")) == 4
     as_reviewer(live_client)
     html = live_client.get("/review/r-1047").text
-    assert html.count("Needed by 4 people") == 2  # The queue list and the request card.
+    # The queue list and the request card. (The Not now revisit item for r-1051 says it too.)
+    assert html.count("Needed by 4 people") == 3
+    assert html.count("Needed by 4 people</span>") == 2
     assert "For webinars as well." in html and "Avery Test" in html
     as_requester(live_client)
     # The person who was added sees the request and the decision when it comes, but not who else is on it.

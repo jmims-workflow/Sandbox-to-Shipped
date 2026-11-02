@@ -58,6 +58,7 @@ OUTCOMES: dict[str, str] = {
     "approve_with_limits": "Approved with limits",
     "use_existing": "Use a tool we have",
     "not_approved": "Not approved as requested",
+    "not_now": "Not now",
 }
 # Shorter labels for the reviewer's radio cards.
 OUTCOME_CHOICES: dict[str, str] = {
@@ -65,6 +66,7 @@ OUTCOME_CHOICES: dict[str, str] = {
     "approve_with_limits": "Approve with limits",
     "use_existing": "Use an existing tool",
     "not_approved": "Not approved",
+    "not_now": "Not now",
 }
 
 SECURITY_CHECK: dict[str, str] = {
@@ -170,3 +172,5 @@ class Decision(SQLModel, table=True):
     reason_edited: bool = False
     decided_by: str
     decided_at: NaiveDatetime
+    # Not now only: the date to look at the request again.
+    revisit_on: Optional[date] = None

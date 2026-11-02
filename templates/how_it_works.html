@@ -15,7 +15,24 @@
     <li><span class="step">{{ icon("checklist", 16) }} Ready to ship check</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
     <li><span class="step approved">{{ icon("check", 16) }} Approved</span></li>
   </ol>
+  <p class="small" id="side-h" style="margin:0 0 8px"><strong>A side path from Reviewer decides:</strong></p>
+  <ol class="flow flow-side" aria-labelledby="side-h">
+    <li><span class="step">Reviewer decides</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
+    <li><span class="step notnow">{{ icon("pause", 16) }} Not now</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
+    <li><span class="step">{{ icon("calendar", 16) }} Revisit date</span><span class="arrow">{{ icon("arrow", 18) }}</span></li>
+    <li><span class="step">{{ icon("history", 16) }} Back to Reviewer decides</span></li>
+  </ol>
   <p class="muted" style="margin:0">Every approved tool starts as a pilot: one team uses it, with a named owner and an end date. Before a reviewer ships it, a short check confirms the owner agreed, security is covered, the team kept using it, and how it was tested.</p>
+</section>
+
+<section class="card" aria-labelledby="slots-h">
+  <h2 id="slots-h">Pilot slots</h2>
+  <p>Only {{ PILOT_SLOTS }} tools can be in pilot at once. A pilot keeps its slot until it's shipped or retired, even after its end date. When every slot is in use, a new approval has to wait: a reviewer ships or retires a pilot first, or chooses Not now. Extending a pilot doesn't need a free slot. Reviewers see how many slots are in use at the top of the review queue.</p>
+</section>
+
+<section class="card" aria-labelledby="notnow-h">
+  <h2 id="notnow-h">Not now</h2>
+  <p style="margin:0">Not now is for a good idea at the wrong time. It comes with a reason, what would change the answer and a date to look again, no more than 6 months away. On that date the request comes back to the review queue under Needs a decision, and a reviewer reopens it or decides again. Until then, people can still say "I need this too", so the count keeps growing.</p>
 </section>
 
 <section class="card" aria-labelledby="ideas-h">
@@ -24,12 +41,14 @@
     <li><strong>One front door.</strong> Requests, decisions and approved tools live in one place, so nobody has to chase an answer in chat.</li>
     <li><strong>Check what exists first.</strong> Before you submit, we show approved tools that may already do the job. Often the best answer is a tool we already have.</li>
     <li><strong>A person decides every request.</strong> Claude sizes up requests, suggests matches and drafts reasons. It never approves or turns down anything on its own.</li>
-    <li><strong>Every "no" comes with a reason and a path.</strong> Each decision says why, and what would change the answer.</li>
+    <li><strong>Every "no" comes with a reason and a path.</strong> Each decision says why, and what would change the answer. A Not now always comes with a date to look again.</li>
     <li><strong>We ask what you actually know.</strong> The form asks how often and who would use it, not how many hours it would save, because hours are hard to guess.</li>
     <li><strong>Past decisions are open, requesters stay private.</strong> Decided before shows every past decision and its reason so nobody asks twice. It never shows who asked.</li>
     <li><strong>Owners agree to be owners.</strong> Nobody is listed as a tool owner unless they agreed to it.</li>
     <li><strong>Security sets the security rules.</strong> The security team writes the rules, and the app applies them to each request's answers. Everyday requests pass automatically when the answers fit the rules. Sensitive personal information always goes to a person on the security team.</li>
     <li><strong>Shipped means it earned it.</strong> Every new tool starts as a pilot: one team, a named owner and an end date. It moves to approved only after a reviewer confirms the owner agreed, security is covered, the team kept using it, and how it was tested. Pilots that run out and reviews that come due are flagged, so nothing sits in a pilot or the inventory forever.</li>
+    <li><strong>Room is part of the standard.</strong> Only a set number of tools can be in pilot at once. When the pilots are full, a new yes means shipping or retiring something first, or a Not now with a date to look again. The limit is shown openly, so a capacity decision is about the limit, not the person asking.</li>
   </ol>
+  <p style="margin:16px 0 0">Why standards. Every "no" in this app points to something written down: security's rules, the review checklist, the number of pilot slots, or a past decision. The idea, borrowed from Stuart Diamond's Getting More, is that a decision should rest on an agreed standard, so the conversation is about the standard and not about anyone's feelings. It also means no single reviewer has to be the bad guy.</p>
 </section>
 {% endblock %}

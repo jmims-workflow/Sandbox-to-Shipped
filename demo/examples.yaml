@@ -1,0 +1,69 @@
+# The "Try an example" buttons on Request a tool (fictional demo data).
+# Each example fills the whole form. "recorded" holds Claude's recorded results for
+# the example's task; leave it out when the task is a demo request's task, and that
+# request's recording is used instead.
+examples:
+  - key: follow-up-emails
+    label: Follow-up emails
+    task: >-
+      After a discovery call, turn my notes into a follow-up email that answers
+      every question the customer asked and proposes a next step.
+    team: Sales
+    how_often: few_week
+    who_uses: my_team
+    info: [customer_contact, deal_pricing]
+    security_answers: {sends_without_check: "no", keeps_elsewhere: "no", ai_service: claude}
+
+  - key: auto-reply
+    label: Auto-reply to demo requests
+    task: >-
+      When someone asks for a demo on our website, send them an automatic reply
+      with a few meeting times and a short intro to FlowOS.
+    team: Sales
+    how_often: every_day
+    who_uses: several_teams
+    info: [customer_contact]
+    security_answers: {sends_without_check: "yes", keeps_elsewhere: "no", ai_service: claude}
+    extra: Replies can take a day right now, and people lose interest.
+    recorded:
+      matches:
+        - tool_id: call-recap-writer
+          confidence: possible
+          reason: >-
+            It writes emails to customers and is approved for contact details,
+            but a rep sends each one; it doesn't reply on its own.
+      related_decision:
+        request_id: r-1044
+        reason: Someone asked for automatic replies to demo requests before.
+      size_up:
+        title: Automatic replies to demo requests
+        bullets:
+          - {label: Closest match, text: "Call Recap Writer drafts customer emails, but a rep sends each one."}
+          - {label: Sends on its own, text: "The reply would go to prospects without a person checking first."}
+          - {label: Worth asking, text: "Would a drafted reply that a rep checks and sends be fast enough?"}
+
+  - key: social-posts
+    label: Social posts from case studies
+    task: >-
+      Turn each new case study into a few social media posts and a short blurb
+      for our newsletter.
+    team: Marketing
+    how_often: few_month
+    who_uses: my_team
+    info: [public_only]
+    recorded:
+      matches:
+        - tool_id: case-study-builder
+          confidence: possible
+          reason: >-
+            It works from case study material, but it drafts the case study
+            itself rather than the posts that follow.
+      related_request:
+        request_id: r-1047
+        reason: It asks for social posts and a newsletter blurb from each new case study.
+      size_up:
+        title: Social posts from case studies
+        bullets:
+          - {label: Closest match, text: "Case Study Builder writes the case study, not the posts that follow."}
+          - {label: Information, text: "Uses public case studies only. A person posts each one."}
+          - {label: Worth asking, text: "Could this join the request already in review for the same thing?"}

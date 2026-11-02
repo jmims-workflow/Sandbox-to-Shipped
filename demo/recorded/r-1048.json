@@ -44,6 +44,10 @@
     "not_approved": {
       "reason": "We're not approving this as a new tool because Call Recap Writer already turns call notes into follow-up emails and is approved for customer and deal details. Two tools doing the same job would split owners and training.",
       "what_would_change": "If Call Recap Writer can't answer customer questions in the order they were asked, tell us what it missed and we'll look again."
+    },
+    "not_now": {
+      "reason": "Call Recap Writer already does most of this, and every pilot slot is in use right now. Try it first, and we'll look at this again on the date below if it falls short.",
+      "what_would_change": "A pilot slot opening up, or a clear gap that Call Recap Writer can't cover."
     }
   }
 }

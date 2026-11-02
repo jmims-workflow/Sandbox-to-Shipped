@@ -41,6 +41,13 @@ MSG_PASSED_ONLY = (
 )
 MAX_EXTENSION_DAYS = 60
 READY_TOTAL = 4
+# Not now: the date to look again defaults to 3 months out and can be no more than 6.
+REVISIT_DEFAULT_MONTHS = 3
+REVISIT_MAX_MONTHS = 6
+
+
+def msg_slots_full(total: int) -> str:
+    return f"All {total} pilot slots are in use. Ship or retire a pilot first, or choose Not now."
 
 
 def long_date(value: date) -> str:
@@ -149,6 +156,7 @@ class DecisionForm:
     what_would_change: str = ""
     drafted_reason: str = ""  # The reason text as Claude drafted it, if it did.
     new_tool: NewTool = field(default_factory=NewTool)
+    revisit_on: Optional[date] = None  # Not now only.
 
 
 def warnings_for(form: DecisionForm) -> list[str]:
@@ -158,12 +166,21 @@ def warnings_for(form: DecisionForm) -> list[str]:
     return []
 
 
-def validate_decision(form: DecisionForm, inventory: list[Tool], auto_result: str = "") -> dict[str, str]:
+def validate_decision(
+    form: DecisionForm,
+    inventory: list[Tool],
+    auto_result: str = "",
+    today: Optional[date] = None,
+    pilot_slots: Optional[int] = None,
+) -> dict[str, str]:
     """Return {field: message}. An empty dict means the decision can be sent.
 
     auto_result is the request's automatic security check. "Passed automatically" can only be
     kept when the request passed; a reviewer can always change it to Needed.
+    pilot_slots is how many tools can be in pilot at once. Approvals are refused while every
+    slot is in use, because every approval starts a new pilot.
     """
+    today = today or date.today()
     errors: dict[str, str] = {}
     c = form.checklist
     if c.already_exists not in YES_NO:
@@ -201,6 +218,22 @@ def validate_decision(form: DecisionForm, inventory: list[Tool], auto_result: st
 
     if form.outcome == "approve_with_limits" and not form.limits.strip():
         errors["limits"] = "Write the limits that come with this approval."
+
+    if form.outcome == "not_now":
+        latest = add_months(today, REVISIT_MAX_MONTHS)
+        if form.revisit_on is None:
+            errors["revisit_on"] = "Pick the date to look at this again."
+        elif form.revisit_on <= today:
+            errors["revisit_on"] = "Pick a date after today."
+        elif form.revisit_on > latest:
+            errors["revisit_on"] = (
+                f"Pick a date within {REVISIT_MAX_MONTHS} months, {long_date(latest)} at the latest."
+            )
+
+    if form.outcome in APPROVALS and pilot_slots is not None:
+        slots = slot_count(inventory, pilot_slots)
+        if slots["full"]:
+            errors["outcome"] = msg_slots_full(slots["total"])
 
     if form.outcome in APPROVALS:
         if c.security_check == "needed":
@@ -242,6 +275,7 @@ def build_decision(
         reason_edited=bool(drafted) and drafted != form.reason.strip(),
         decided_by=decided_by,
         decided_at=now,
+        revisit_on=form.revisit_on if form.outcome == "not_now" else None,
     )
 
 
@@ -296,6 +330,71 @@ def add_event(tool: Tool, kind: str, on: date, note: Optional[str] = None) -> No
 
 def one_line(text: str) -> str:
     return " ".join((text or "").split())
+
+
+# ---- Pilot slots -------------------------------------------------------------------
+
+
+def slot_count(tools: list[Tool], total: int) -> dict[str, Any]:
+    """Every tool in pilot uses a slot, even after its end date, until it is shipped or retired."""
+    pilots = sorted([t for t in tools if t.status == "being_tried"], key=lambda t: t.name)
+    return {"used": len(pilots), "total": total, "pilots": pilots, "full": len(pilots) >= total}
+
+
+def slots_line(slots: dict[str, Any]) -> str:
+    line = f"Pilot slots: {slots['used']} of {slots['total']} used."
+    if slots["full"]:
+        line += " Ship or retire a pilot to make room."
+    return line
+
+
+# ---- Not now ------------------------------------------------------------------------
+
+
+def latest_decision(decisions: list[Decision], request_id: str) -> Optional[Decision]:
+    """A request decided again after Not now keeps every decision. The newest one counts."""
+    mine = [d for d in decisions if d.request_id == request_id]
+    return max(mine, key=lambda d: (d.decided_at, d.id or 0)) if mine else None
+
+
+def latest_decisions(decisions: list[Decision]) -> dict[str, Decision]:
+    out: dict[str, Decision] = {}
+    for d in sorted(decisions, key=lambda d: (d.decided_at, d.id or 0)):
+        out[d.request_id] = d
+    return out
+
+
+def is_not_now(request: Request, decision: Optional[Decision]) -> bool:
+    return request.status == "decided" and decision is not None and decision.outcome == "not_now"
+
+
+def revisit_is_due(request: Request, decision: Optional[Decision], today: date) -> bool:
+    """A Not now request comes back on its revisit date. The date itself counts."""
+    return is_not_now(request, decision) and decision.revisit_on is not None and decision.revisit_on <= today
+
+
+def revisit_due(requests: list[Request], decisions: list[Decision], today: date) -> list[dict[str, Any]]:
+    """Not now requests whose revisit date has arrived, for "Needs a decision"."""
+    latest = latest_decisions(decisions)
+    items = []
+    for r in sorted(requests, key=lambda r: r.title):
+        d = latest.get(r.id)
+        if revisit_is_due(r, d, today):
+            n = needed_by_count(r)
+            people = "1 person" if n == 1 else f"{n} people"
+            line = f"Revisit: Not now since {long_date(d.decided_at.date())}. Needed by {people}."
+            items.append({"request": r, "decision": d, "flag": "not_now", "line": line})
+    return items
+
+
+def reopen_request(request: Request, decision: Optional[Decision], today: date) -> Request:
+    """Send a Not now request back to waiting. Its earlier decision and timeline are kept."""
+    if not revisit_is_due(request, decision, today):
+        raise RequestChangeError("Only a Not now request whose revisit date has arrived can be reopened.")
+    request.status = "waiting"
+    request.draft = None
+    request.timeline = list(request.timeline) + [{"label": "Reopened after Not now", "date": today.isoformat()}]
+    return request
 
 
 # ---- Pilot ended and Review due ---------------------------------------------------
@@ -585,16 +684,17 @@ def needed_by_count(request: Request) -> int:
     return 1 + len(request.needed_by or [])
 
 
-def add_needed_by(request: Request, name: str, note: str, today: date) -> Request:
-    """Add a person to a request that is still waiting or in review.
+def add_needed_by(request: Request, name: str, note: str, today: date, outcome: str = "") -> Request:
+    """Add a person to a request that is still waiting or in review, or decided as Not now.
 
+    outcome is the request's latest decision, if any. Not now requests keep counting demand.
     A person can be added only once, and never to their own request.
     """
     name = one_line(name)
     note = one_line(note)
     if not name:
         raise RequestChangeError("We need your name to add you to this request.")
-    if request.status not in OPEN_STATUSES:
+    if request.status not in OPEN_STATUSES and not (request.status == "decided" and outcome == "not_now"):
         raise RequestChangeError("This request already has a decision. You can see it on Decided before.")
     if name == request.requester_name:
         raise RequestChangeError("This is your own request, so you're already on it.")
@@ -606,3 +706,26 @@ def add_needed_by(request: Request, name: str, note: str, today: date) -> Reques
         {"name": name, "note": note or None, "date": today.isoformat()}
     ]
     return request
+
+
+# ---- Here's what happens next ---------------------------------------------------------
+
+STEP_STATUSES = {"done": "Done", "next": "Next", "later": "Later"}
+
+
+def next_steps(request: Request, review_days: int, security_line: str) -> list[dict[str, Any]]:
+    """The three steps a requester sees after sending a request.
+
+    security_line is the plain result of the automatic security check for this request.
+    """
+    auto = auto_security(request)
+    days = f"{review_days} working day{'' if review_days == 1 else 's'}"
+    return [
+        {"key": "security", "title": "Security check", "line": security_line,
+         "status": "done" if auto in ("not_needed", "passed") else "next"},
+        {"key": "reviewer", "title": "A reviewer decides",
+         "line": f"Reviewers usually answer within {days}.", "status": "next", "current": True},
+        {"key": "decision", "title": "You get a decision",
+         "line": "You'll see the decision, the reason and what would change the answer on My requests.",
+         "status": "later"},
+    ]

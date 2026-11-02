@@ -57,9 +57,13 @@ def test_preview_calls_claude_only_for_the_three_features(tmp_path):
     assert [x["output_format"].__name__ for x in calls] == ["MatchResult"]
     c.cookies.set("sts_viewer", "requester")
     html = c.post("/", data=SUBMIT).text
+    # Requesters never see Claude's read, so sending a request doesn't ask Claude for one.
+    assert [x["output_format"].__name__ for x in calls] == ["MatchResult"]
+    assert "Short follow-up emails" not in html and "Claude&#39;s read" not in html
+    # "See this request the way a reviewer would" asks Claude for its read, on the button press.
+    html = c.post("/review/sample", data=SUBMIT).text
     assert [x["output_format"].__name__ for x in calls] == ["MatchResult", "SizeUp"]
-    assert "Short follow-up emails" in html or "Only reviewers see this" in html
-    assert "Demo builds this from simple rules" not in html
+    assert "Short follow-up emails" in html and "Demo builds this from simple rules" not in html
     as_reviewer(c)
     r = c.post("/review/r-1048", data={"action": "draft", "outcome": "use_existing", "existing_tool_id": "call-recap-writer"})
     assert "Drafted reason text." in r.text
@@ -95,7 +99,7 @@ def test_preview_saves_nothing_and_disables_saving_buttons(tmp_path):
     if "I need this too" in card:
         assert "disabled" in re.search(r"<button[^>]*>I need this too</button>", card).group(0)
     assert not (tmp_path / "data").exists()
-    assert len(app.state.store.list_requests()) == 9
+    assert len(app.state.store.list_requests()) == 11
     assert len(app.state.store.get_request("r-1047").needed_by) == 2
 
 
@@ -113,7 +117,9 @@ def test_preview_daily_limit_falls_back_with_the_notice(tmp_path):
     assert len(calls) == 2
     # Claude's read and drafts fall back too, never with an error page.
     r = c.post("/", data=SUBMIT)
-    assert r.status_code == 200 and has_limited_notice(r.text) and "what happens next" in r.text
+    assert r.status_code == 200 and "what would happen next" in r.text
+    r = c.post("/review/sample", data=SUBMIT)
+    assert r.status_code == 200 and has_limited_notice(r.text) and "Claude's read" in r.text
     as_reviewer(c)
     r = c.post("/review/r-1048", data={"action": "draft", "outcome": "use_existing"})
     assert r.status_code == 200 and has_limited_notice(r.text)

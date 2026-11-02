@@ -265,3 +265,45 @@ def early_warnings(info: list[str], answers: Optional[dict]) -> dict[str, str]:
     if answers.get(Q_SENDS) == "yes" and any(i != "public_only" for i in info):
         warnings[Q_SENDS] = WARN_SENDS
     return warnings
+
+
+# What a requester sees about each question when it sent the request to a person.
+SHORT_QUESTIONS = {
+    Q_SENDS: "to sending to customers without a person checking",
+    Q_KEEPS: "to keeping information outside approved tools",
+    Q_SERVICE: "about the AI service",
+}
+
+
+def requester_line(info: list[str], answers: Optional[dict], rules: SecurityRules) -> str:
+    """The security step on "Here's what happens next", in the requester's words.
+
+    Built from the same rules as check_security(), in code. Claude is not involved.
+    """
+    result = check_security(info, answers, rules).result
+    if result == "not_needed":
+        return "Not needed. It only uses public information."
+    if result == "passed":
+        return "Passed automatically against security's rules."
+    answers = answers or {}
+    levels = {i: rules.information.get(i, "person") for i in info if i in INFO_KINDS}
+    person_kinds = [i for i, level in levels.items() if level == "person"]
+    if person_kinds:
+        names = ", ".join(INFO_KINDS[i].split(" (")[0].lower() for i in person_kinds)
+        because = [f"it uses {names}"]
+    else:
+        because = []
+        for q in (Q_SENDS, Q_KEEPS, Q_SERVICE):
+            value = str(answers.get(q) or "")
+            if q != Q_SERVICE and value == "no":
+                continue
+            if q == Q_SERVICE and value in rules.service_names:
+                continue
+            if not value:
+                because.append(f"the question about {SHORT_QUESTIONS[q].split(' ', 1)[1]} wasn't answered")
+            elif q == Q_SERVICE and value not in OTHER_SERVICES:
+                because.append("the AI service isn't on security's approved list")
+            else:
+                because.append(f"you answered {answer_text(q, value, rules)} {SHORT_QUESTIONS[q]}")
+    joined = because[0] if len(because) == 1 else ", ".join(because[:-1]) + " and " + because[-1]
+    return f"A person from security will review this, because {joined}."
