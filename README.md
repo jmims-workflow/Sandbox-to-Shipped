@@ -139,7 +139,9 @@ Every gate (security screening, pilot slots, the ready to ship check) is enforce
 
 [![Tests](https://github.com/jmims-workflow/Sandbox-to-Shipped/actions/workflows/tests.yml/badge.svg)](https://github.com/jmims-workflow/Sandbox-to-Shipped/actions/workflows/tests.yml)
 
-340 tests pass. They cover every decision and screening rule, saving in live mode, the preview limits, privacy and plain language, using a stand-in for Claude so they never call the real API. The [walkthrough](docs/walkthrough.mp4) is the end-to-end demonstration; [docs/testing.md](docs/testing.md) has the detail.
+365 tests pass. They cover every decision and screening rule, saving in live mode, the preview limits, privacy and plain language, using a stand-in for Claude so they never call the real API. The [walkthrough](docs/walkthrough.mp4) is the end-to-end demonstration; [docs/testing.md](docs/testing.md) has the detail.
+
+Matching quality is measured separately, by hand: a [labeled set of requests](evals/README.md) is run through Claude's real match check, scored, and compared with the simple word match.
 
 ## Limitations and the production path
 
@@ -147,7 +149,7 @@ Every gate (security screening, pilot slots, the ready to ship check) is enforce
 - **No lasting storage on the public site.** It runs in preview mode and saves nothing; live mode uses one SQLite file.
 - **Preview limits are counted in memory** on one server and reset when it restarts.
 - **Security screening relies on the requester's answers.** A reviewer can still send a request to a person.
-- **Claude's matches aren't measured.** The tests use a stand-in, so matching quality needs its own evaluation.
+- **Matching is measured only by hand.** A small labeled set written by the builder, not a scheduled check.
 
 What production would need, and the full list, are in [docs/production.md](docs/production.md). None of it is built.
 

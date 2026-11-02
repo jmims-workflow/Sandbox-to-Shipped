@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-There are 340 automated tests, and they all pass. A GitHub Actions workflow (`.github/workflows/tests.yml`) runs them on every pull request and every push to main.
+There are 365 automated tests, and they all pass. A GitHub Actions workflow (`.github/workflows/tests.yml`) runs them on every pull request and every push to main.
 
 ```bash
 pytest
@@ -25,13 +25,27 @@ pytest
 - **Demo mode and wording** (`tests/test_web_demo.py`, `tests/test_demo_data.py`): every page renders; demo mode makes no network calls and saves nothing; demo dates are relative to today; privacy on Decided before (no requester names) and for Claude's read; the plain-language word list, including "being tried" and "security check", on every page.
 - **Docs** (`tests/test_readme.py`): the README keeps its opening, My role and Part of a set sections word for word and stays short; every relative link in the README and in `docs/` points to a file that exists; the design principles and Why standards paragraph are kept.
 - **No em dashes** (`tests/test_em_dash.py`): a scan of every text file.
+- **The matching evaluation's own code** (`tests/test_eval_matching.py`): the case file loads and every tool, decision and request id in it exists; every category has at least 3 cases; each scoring measure on hand-built answers, including cases that expect no tool and injection cases; the command refuses without a key, refuses the stand-in next to a real key, enforces `--max-calls` and never prints the key; the baseline makes no network calls; and a full run against the stand-in writes both report files.
 
 ## A stand-in for Claude
 
-The tests never call the real Claude API. Live and preview modes are tested with a stand-in client (`sts/fake_claude.py`) that returns fixed structured answers. The tests also check the shape of each request sent to Claude. That means the tests show the app's rules and storage work; they don't measure how good Claude's matches are. [The production path](production.md) describes a separate, labeled evaluation for that.
+The tests never call the real Claude API. Live and preview modes are tested with a stand-in client (`sts/fake_claude.py`) that returns fixed structured answers. The tests also check the shape of each request sent to Claude. That means the tests show the app's rules and storage work; they don't measure how good Claude's matches are. The matching evaluation below does that.
 
 ## End to end
 
 - **The recorded walkthrough** ([docs/walkthrough.mp4](walkthrough.mp4)) is the end-to-end demonstration: a request, both server refusals, a pilot and a shipped tool, recorded in a real browser on a local copy in live mode with the stand-in for Claude. Rerun it with `node scripts/walkthrough.js` (needs Node, Playwright and ffmpeg). It is not run in GitHub Actions.
 - **The example buttons** are checked in a real browser with JavaScript on by `node scripts/check_examples.js` against a running app. `pytest` runs it too when Node and Playwright are installed, and skips it otherwise.
 - **Screenshots** are refreshed with `node scripts/screenshots.js` against the app in demo mode.
+
+## The matching evaluation
+
+The unit tests check that the app handles Claude's answers safely. They can't say whether Claude's suggestions are any good. The matching evaluation does: `sts eval-matching` runs about 30 labeled requests (in `evals/matching_cases.yaml`) through the real match check and scores the tool suggestions, "Asked before" and "I need this too". `sts eval-matching --baseline` runs the same cases through the simple word match, so Claude can be compared with it. Reports are in `evals/results/`.
+
+How it differs from the unit tests:
+
+- **Real Claude, not the stand-in.** It needs `ANTHROPIC_API_KEY`, makes real calls and costs a little money each run. It asks before making any call and stops above `--max-calls`.
+- **Scored, not pass or fail.** It reports how often the top suggestion was right, how often an expected tool was missed or a wrong one suggested, and how the related request and decision did, overall and by category.
+- **Run by hand, never in GitHub Actions.** It is run on purpose, for example after a change to the model or the matching instructions, and the dated report is saved with the case set's hash so runs can be compared.
+- **Measure, don't tune.** The case set measures matching as it is. Changing the instructions to raise the score is a separate change, compared before and after with the same set.
+
+See [evals/README.md](../evals/README.md) for what each category tests, how to read a report and how to run it in Google Cloud Shell.

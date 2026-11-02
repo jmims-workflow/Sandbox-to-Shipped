@@ -69,6 +69,8 @@ from .rules import (
     long_date,
     mark_reviewed,
     needs_decision,
+    open_requests_for_match,
+    past_decisions_for_match,
     parse_month,
     prefill_checklist,
     ready_count,
@@ -384,32 +386,10 @@ def create_app(settings: Optional[Settings] = None, provider: Any = None) -> Fas
         return f
 
     def open_requests(name: str) -> list[dict]:
-        """Requests still waiting or in review, for "I need this too". Never includes who asked.
-
-        The person's own requests, and requests they are already on, are left out.
-        """
-        out = []
-        latest = latest_decisions(store.list_decisions())
-        for r in sorted(store.list_requests(), key=lambda r: r.submitted_at, reverse=True):
-            # Not now requests still count demand, so people can join them too.
-            if (r.status not in OPEN_STATUSES and not is_not_now(r, latest.get(r.id))) or r.requester_name == name:
-                continue
-            if any(p.get("name") == name for p in r.needed_by or []):
-                continue
-            out.append({"id": r.id, "title": r.title, "task": r.task})
-        return out[:40]
+        return open_requests_for_match(store, name)
 
     def past_decisions() -> list[dict]:
-        """Decided requests for Asked before. Never includes who asked."""
-        requests = {r.id: r for r in store.list_requests()}
-        out = []
-        for d in sorted(latest_decisions(store.list_decisions()).values(), key=lambda d: d.decided_at, reverse=True):
-            r = requests.get(d.request_id)
-            if r is None or r.status != "decided":
-                continue
-            out.append({"id": r.id, "title": r.title, "task": r.task, "outcome": d.outcome,
-                        "reason": d.reason, "what_would_change": d.what_would_change})
-        return out[:40]
+        return past_decisions_for_match(store)
 
     def check_matches(task: str, info: list[str], req: HTTPRequest, p: Any = None) -> dict:
         """Run the existing-tool check. Returns matches with their tools, the source, any related

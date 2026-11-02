@@ -45,6 +45,7 @@ sts check-data
 - `sts/store.py`: DemoStore (read only) and LiveStore (SQLite). `sts/web.py`: routes. `templates/`, `static/`.
 - `demo/`: `tools.yaml`, `requests.yaml`, `examples.yaml` (the three "Try an example" buttons, with recorded results for tasks that aren't demo requests), `recorded/<request-id>.json`. Every demo date is stored as an offset from today ("today", "3 days ago", "in 2 weeks", "last month"), never a fixed date, so the demo always looks current. Demo "today" is the real date. `tests/test_demo_data.py` checks this.
 - `docs/`: `design.md` (every principle and Why standards), `architecture.md` (the full Under the hood, Claude calls, rules and data model), `testing.md`, `deploy.md` (Cloud Run, key rotation), `configuration.md` (the settings table), `production.md` (the production path, marked not built), `try-it.md` (what to try on the live site), the walkthrough and `screenshots/`. The README stays short (about 900 words of prose, under 1,000, not counting My role and Part of a set); put detail in docs/ and link to it with relative links. The opening, My role and Part of a set are word for word; tests/test_readme.py checks them, the word count and every relative link.
+- `evals/`: the matching evaluation. `matching_cases.yaml` is the labeled set (validated at load time), `results/` holds the dated reports (`matching-<date>-<claude|baseline|stand-in>.md` and `.json`), and `README.md` explains it. The code is `sts/eval_matching.py` (cases, running, report) and `sts/eval_scoring.py` (plain scoring); the command is `sts eval-matching`. Keep tests in tests/test_eval_matching.py in step.
 - `sts/store.py` `LiveStore.upgrade()`: adds new columns (tool, request and decision tables) to an older live database on startup and builds journeys for existing tools. Add any new column there too.
 
 ## Decision rules (keep tests in tests/test_rules.py in step)
@@ -113,6 +114,13 @@ sts check-data
 - The match call may also return one request still waiting or in review. Send open requests as id, title and task only, never names, and leave out the person's own requests and ones they're already on. Drop any id not in the list sent.
 - Live: adds the person to `needed_by` (once, never their own request, only while open). They see it under "Requests I need too" on My requests. Reviewers see "Needed by N people" (requester plus everyone added) and each added person's note. Requesters never see who else is attached.
 - The button is "I need this too". Never "Me too", "upvote" or "like", and no thumbs icon.
+
+## Matching evaluation
+
+- Measure, don't tune: never change the matching instructions, the provider or the demo data to make the evaluation score better. A change suggested by the results is its own round, compared before and after with the same case set (the report records the set's hash).
+- Change a label in `evals/matching_cases.yaml` only when the label is wrong, and say why in its note. Never reuse demo or recorded task text in it.
+- `sts eval-matching` makes real Claude calls (it asks first and stops above `--max-calls`, default 60). `--baseline` is the word match, with no key and no network calls. With `STS_FAKE_CLAUDE=1` it uses the stand-in, for tests only, and refuses a real key alongside it. It ignores `STS_MODE` and the preview limits.
+- The evaluation never runs in GitHub Actions. Commit the baseline report; commit a Claude report when a person ran it.
 
 ## Plain language
 

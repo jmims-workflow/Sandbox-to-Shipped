@@ -1,4 +1,4 @@
-"""A small command line: sts serve, sts seed --reset, sts check-data."""
+"""A small command line: sts serve, sts seed --reset, sts check-data, sts eval-matching."""
 
 from __future__ import annotations
 
@@ -78,6 +78,52 @@ def check_data():
             typer.echo(f"  {p}")
         raise typer.Exit(1)
     typer.echo("Demo data and security rules look good.")
+
+
+@app.command("eval-matching")
+def eval_matching(
+    yes: bool = typer.Option(False, "--yes", "-y", help="Don't ask before making Claude calls."),
+    max_calls: int = typer.Option(60, "--max-calls", help="Refuse to run more Claude calls than this."),
+    repeats: int = typer.Option(1, "--repeats", min=1, help="Run each case this many times to check consistency."),
+    baseline: bool = typer.Option(False, "--baseline", help="Use the simple word match. No key, no network calls."),
+    out_dir: str = typer.Option("", "--out-dir", help="Where to write the report. Defaults to evals/results."),
+):
+    """Run the labeled matching cases through the match check, score them and write a dated report."""
+    from datetime import date
+    from pathlib import Path
+
+    from . import eval_matching as ev
+
+    settings = Settings.from_env()  # STS_MODE is ignored here; only the key, STS_MODEL and STS_FAKE_CLAUDE count.
+    try:
+        runner = ev.make_runner(settings, baseline)
+    except ValueError as exc:
+        typer.echo("Not running: " + str(exc), err=True)
+        raise typer.Exit(1)
+    try:
+        world = ev.load_world(settings.demo_dir)
+        cases = ev.load_cases(ev.CASES_PATH, world)
+    except (DemoDataError, ev.CaseFileError) as exc:
+        typer.echo("The case file or demo data has problems:\n" + str(exc), err=True)
+        raise typer.Exit(1)
+
+    calls = 0 if runner.kind == "baseline" else len(cases) * repeats
+    who = {"claude": f"Claude ({runner.model})", "stand-in": "the stand-in for Claude (testing only)",
+           "baseline": "the word match"}[runner.kind]
+    typer.echo(f"{len(cases)} cases x {repeats} run(s) against {who}: {calls} Claude call(s).")
+    if calls > max_calls:
+        typer.echo(f"Not running: that is more than --max-calls {max_calls}. Lower --repeats or raise --max-calls.",
+                   err=True)
+        raise typer.Exit(1)
+    if runner.kind == "claude" and not yes:
+        typer.confirm(f"Make {calls} real Claude calls? They are billed to the key's account", abort=True)
+
+    out = Path(out_dir) if out_dir else ev.RESULTS_DIR
+    markdown, md, js = ev.evaluate(cases, runner, world, repeats=repeats, out_dir=out,
+                                   cases_hash=ev.case_file_hash(ev.CASES_PATH), today=date.today(),
+                                   progress=typer.echo)
+    typer.echo(f"\nWrote {md} and {js}\n")
+    typer.echo(markdown)
 
 
 if __name__ == "__main__":
